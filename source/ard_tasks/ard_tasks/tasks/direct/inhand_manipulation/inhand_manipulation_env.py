@@ -175,6 +175,8 @@ class InHandManipulationEnv(DirectRLEnv):
         if "log" not in self.extras:
             self.extras["log"] = dict()
         self.extras["log"]["consecutive_successes"] = self.consecutive_successes.mean()
+        # Fitness function: consecutive_successes (rotations to goal within episode).
+        self.extras["log"]["fitness_function"] = self.consecutive_successes.mean()
 
         # reset goals if the goal has been reached
         goal_env_ids = self.reset_goal_buf.nonzero(as_tuple=False).squeeze(-1)

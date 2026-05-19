@@ -460,6 +460,9 @@ class FrankaCabinetEnv(DirectRLEnv):
             - action_penalty_scale * action_penalty
         )
 
+        # Fitness function: is_success (drawer opened beyond termination threshold).
+        is_success = (cabinet_dof_pos[:, self.drawer_joint_idx] > 0.39).float()
+
         self.extras["log"] = {
             "dist_reward": (dist_reward_scale * dist_reward).mean(),
             "rot_reward": (rot_reward_scale * rot_reward).mean(),
@@ -468,6 +471,7 @@ class FrankaCabinetEnv(DirectRLEnv):
             "left_finger_distance_reward": (finger_reward_scale * lfinger_dist).mean(),
             "right_finger_distance_reward": (finger_reward_scale * rfinger_dist).mean(),
             "finger_dist_penalty": (finger_reward_scale * finger_dist_penalty).mean(),
+            "fitness_function": is_success.mean(),
         }
 
         # bonus for opening drawer properly

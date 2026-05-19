@@ -13,6 +13,7 @@ outputs/
 runs/
 videos/
 wandb/
+experiment_runs/
 
 # USD assets
 *.usd

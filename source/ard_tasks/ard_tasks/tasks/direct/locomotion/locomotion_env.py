@@ -150,6 +150,12 @@ class LocomotionEnv(DirectRLEnv):
             self.cfg.alive_reward_scale,
             self.motor_effort_ratio,
         )
+
+        # Fitness function: forward velocity in the local frame (progress toward target).
+        if "log" not in self.extras:
+            self.extras["log"] = dict()
+        self.extras["log"]["fitness_function"] = self.vel_loc[:, 0].mean()
+
         return total_reward
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:

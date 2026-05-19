@@ -123,6 +123,12 @@ class CartpoleEnv(DirectRLEnv):
             self.joint_vel[:, self._cart_dof_idx[0]],
             self.reset_terminated,
         )
+
+        # Fitness function: steps before pole falls (episode length).
+        if "log" not in self.extras:
+            self.extras["log"] = dict()
+        self.extras["log"]["fitness_function"] = self.episode_length_buf.float().mean()
+
         return total_reward
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:

@@ -282,6 +282,14 @@ class ForgeEnv(FactoryEnv):
             rew_buf += rew_dict[rew_name] * rew_scales[rew_name]
 
         self._log_forge_metrics(rew_dict, policy_success_pred)
+
+        # Fitness function: success (engagement above N threads for nut_thread).
+        # `true_successes` already encodes the sparse success signal at this step.
+        self.extras["fitness_function"] = true_successes.float().mean()
+        if "log" not in self.extras:
+            self.extras["log"] = dict()
+        self.extras["log"]["fitness_function"] = true_successes.float().mean()
+
         return rew_buf
 
     def _reset_idx(self, env_ids):

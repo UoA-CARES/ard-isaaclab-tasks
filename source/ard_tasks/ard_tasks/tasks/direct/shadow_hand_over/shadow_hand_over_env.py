@@ -292,6 +292,13 @@ class ShadowHandOverEnv(DirectMARLEnv):
         self.extras["log"]["dist_reward"] = rew_dist.mean()
         self.extras["log"]["dist_goal"] = goal_dist.mean()
 
+        # Fitness function: per-step successful handover indicator.
+        # A handover counts as successful when the object reaches the goal position
+        # within a 5cm tolerance (well inside the 24cm fall threshold).
+        success_threshold = 0.05
+        is_success = (goal_dist < success_threshold).float()
+        self.extras["log"]["fitness_function"] = is_success.mean()
+
         return {"right_hand": rew_dist, "left_hand": rew_dist}
 
     def _get_dones(self) -> tuple[dict[str, torch.Tensor], dict[str, torch.Tensor]]:
