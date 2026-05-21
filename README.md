@@ -79,6 +79,58 @@ python scripts/zero_agent.py --task Isaac-ARD-Cartpole-v0 --num_envs 4
 python scripts/random_agent.py --task Isaac-ARD-Cartpole-v0 --num_envs 4
 ```
 
+## Docker image (CARES GPU machines / PCS)
+
+The CARES GPU machines run every job in a container as your own (non-root) user.
+The stock `nvcr.io/nvidia/isaac-lab` image only runs as root, so this repo ships
+a small derived image that pre-installs `ard_tasks` and opens IsaacLab to a
+non-root uid. See [`Dockerfile`](Dockerfile) for the details.
+
+### Build
+
+```bash
+docker pull nvcr.io/nvidia/isaac-lab:2.3.2     # base (no NGC login needed)
+docker build -t pcs-isaaclab-ard:2.3.2 .       # from the repo root
+```
+
+The build adds only a few MB on top of the base, so it finishes in seconds once
+the base image is present. The tag is arbitrary, but it must match the
+`docker_image` you submit to the runner.
+
+### Run
+
+The image **must** be run with the CARES flags. Key points specific to this image:
+
+- Mount your `student_data` at a path **other than `/workspace`** — the image
+  installs IsaacLab at `/workspace/isaaclab`, so mounting over `/workspace` hides
+  it. Use e.g. `/student_data`.
+- Call IsaacLab's interpreter wrapper (`/workspace/isaaclab/isaaclab.sh -p`);
+  bare `python`/`pip` are only root bash aliases in the base image.
+- `train.py` accepts `--num_envs`, `--seed`, `--headless`, `--video`,
+  `--checkpoint`, `--max_iterations` (note: there is **no** `--log_interval`).
+
+```bash
+# Direct run (sanity check), as your own user, GPU attached:
+docker run --rm --gpus all -u "$(id -u):$(id -g)" \
+  --label "student_id=$PCS_UPI" \
+  -e HOME=/student_data \
+  -v /home/$USER/student_data/$PCS_UPI:/student_data \
+  -w /student_data \
+  --entrypoint sh pcs-isaaclab-ard:2.3.2 \
+  -c '/workspace/isaaclab/isaaclab.sh -p /opt/ard-isaaclab-tasks/scripts/train.py \
+        --task Isaac-ARD-Cartpole-v0 --headless --max_iterations 100'
+```
+
+When submitting through the PCS runner, package this repo as the codebase and set
+the command to `bash quickstart.sh <TASK_ID>` (the runner extracts the codebase
+into the working directory and applies the CARES flags for you).
+
+> **Note (ARD reward iteration):** `ard_tasks` is installed into the image at
+> build time, so `import ard_tasks` resolves to the *baked* copy, not the copy in
+> a submitted codebase. If you iterate on reward functions, rebuild the image (or
+> arrange for the edited package to take import precedence) so the new rewards are
+> actually used.
+
 ## Reward isolation (ARD contract)
 
 Every task's environment class exposes its reward computation in a single method with a fixed signature so ARD's AST-level code generator can rewrite it unambiguously:
