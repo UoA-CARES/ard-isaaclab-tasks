@@ -175,8 +175,6 @@ class InHandManipulationEnv(DirectRLEnv):
         if "log" not in self.extras:
             self.extras["log"] = dict()
         self.extras["log"]["consecutive_successes"] = self.consecutive_successes.mean()
-        # Fitness function: consecutive_successes (rotations to goal within episode).
-        self.extras["log"]["fitness_function"] = self.consecutive_successes.mean()
 
         # reset goals if the goal has been reached
         goal_env_ids = self.reset_goal_buf.nonzero(as_tuple=False).squeeze(-1)
@@ -185,8 +183,23 @@ class InHandManipulationEnv(DirectRLEnv):
 
         return total_reward
 
+    def _log_fitness(self) -> None:
+        """Log the fixed ARD evaluation metric (fitness_function).
+
+        Kept OUT of `_get_rewards` so the ARD framework can rewrite the reward
+        without touching the metric it is scored on. Fitness here is
+        `consecutive_successes` (goal rotations reached within an episode), a
+        running average maintained as a side effect of the reward; logging it from
+        `_get_dones` reflects the value at the start of the step (a one-step lag
+        that is immaterial for this smoothed metric).
+        """
+        if "log" not in self.extras:
+            self.extras["log"] = dict()
+        self.extras["log"]["fitness_function"] = self.consecutive_successes.mean()
+
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         self._compute_intermediate_values()
+        self._log_fitness()
 
         # reset when cube has fallen
         goal_dist = torch.norm(self.object_pos - self.in_hand_pos, p=2, dim=-1)

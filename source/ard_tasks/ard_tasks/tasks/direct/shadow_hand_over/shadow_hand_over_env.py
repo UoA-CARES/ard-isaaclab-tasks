@@ -292,17 +292,27 @@ class ShadowHandOverEnv(DirectMARLEnv):
         self.extras["log"]["dist_reward"] = rew_dist.mean()
         self.extras["log"]["dist_goal"] = goal_dist.mean()
 
-        # Fitness function: per-step successful handover indicator.
-        # A handover counts as successful when the object reaches the goal position
-        # within a 5cm tolerance (well inside the 24cm fall threshold).
-        success_threshold = 0.05
-        is_success = (goal_dist < success_threshold).float()
-        self.extras["log"]["fitness_function"] = is_success.mean()
-
         return {"right_hand": rew_dist, "left_hand": rew_dist}
+
+    def _log_fitness(self) -> None:
+        """Log the fixed ARD evaluation metric (fitness_function).
+
+        Computed from environment state only and kept OUT of `_get_rewards`, so
+        the ARD framework can rewrite the reward without ever touching the metric
+        it is scored on. Fitness here is the per-step successful-handover
+        indicator: the object reaches the goal position within a 5cm tolerance
+        (well inside the 24cm fall threshold). Called after
+        `_compute_intermediate_values` so `object_pos` is current.
+        """
+        if "log" not in self.extras:
+            self.extras["log"] = dict()
+        goal_dist = torch.norm(self.object_pos - self.goal_pos, p=2, dim=-1)
+        is_success = (goal_dist < 0.05).float()
+        self.extras["log"]["fitness_function"] = is_success.mean()
 
     def _get_dones(self) -> tuple[dict[str, torch.Tensor], dict[str, torch.Tensor]]:
         self._compute_intermediate_values()
+        self._log_fitness()
 
         # reset when object has fallen
         out_of_reach = self.object_pos[:, 2] <= self.cfg.fall_dist

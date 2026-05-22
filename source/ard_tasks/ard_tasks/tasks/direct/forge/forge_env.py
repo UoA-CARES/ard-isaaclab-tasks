@@ -283,14 +283,32 @@ class ForgeEnv(FactoryEnv):
 
         self._log_forge_metrics(rew_dict, policy_success_pred)
 
-        # Fitness function: success (engagement above N threads for nut_thread).
-        # `true_successes` already encodes the sparse success signal at this step.
-        self.extras["fitness_function"] = true_successes.float().mean()
+        return rew_buf
+
+    def _log_fitness(self) -> None:
+        """Log the fixed ARD evaluation metric (fitness_function).
+
+        Kept OUT of `_get_rewards` so the ARD framework can rewrite the reward
+        without touching the metric it is scored on. Fitness here is the sparse
+        success signal (engagement above N threads for nut_thread), recomputed
+        from current state via `_get_curr_successes`. Called from `_get_dones`,
+        after the base class refreshes intermediate values.
+        """
+        check_rot = self.cfg_task.name == "nut_thread"
+        true_successes = self._get_curr_successes(
+            success_threshold=self.cfg_task.success_threshold, check_rot=check_rot
+        )
         if "log" not in self.extras:
             self.extras["log"] = dict()
+        self.extras["fitness_function"] = true_successes.float().mean()
         self.extras["log"]["fitness_function"] = true_successes.float().mean()
 
-        return rew_buf
+    def _get_dones(self):
+        # FactoryEnv._get_dones refreshes intermediate values, so success state is
+        # current when we log fitness.
+        terminated, time_out = super()._get_dones()
+        self._log_fitness()
+        return terminated, time_out
 
     def _reset_idx(self, env_ids):
         """Perform additional randomizations."""

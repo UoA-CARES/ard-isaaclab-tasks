@@ -290,9 +290,22 @@ class FrankaCabinetEnv(DirectRLEnv):
 
     # post-physics step calls
 
+    def _log_fitness(self, terminated: torch.Tensor) -> None:
+        """Log the fixed ARD evaluation metric (fitness_function).
+
+        Computed from environment state only and kept OUT of `_get_rewards`, so
+        the ARD framework can rewrite the reward without ever touching the metric
+        it is scored on. Fitness here is the success indicator: the drawer is
+        opened beyond the termination threshold (same condition as `terminated`).
+        """
+        if "log" not in self.extras:
+            self.extras["log"] = dict()
+        self.extras["log"]["fitness_function"] = terminated.float().mean()
+
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         terminated = self._cabinet.data.joint_pos[:, self.drawer_joint_idx] > 0.39
         truncated = self.episode_length_buf >= self.max_episode_length - 1
+        self._log_fitness(terminated)
         return terminated, truncated
 
     def _get_rewards(self) -> torch.Tensor:
@@ -460,10 +473,12 @@ class FrankaCabinetEnv(DirectRLEnv):
             - action_penalty_scale * action_penalty
         )
 
-        # Fitness function: is_success (drawer opened beyond termination threshold).
-        is_success = (cabinet_dof_pos[:, self.drawer_joint_idx] > 0.39).float()
-
-        self.extras["log"] = {
+        # NB: fitness_function is logged separately in `_log_fitness` (called from
+        # `_get_dones`) so it survives ARD rewriting the reward. We `update` here
+        # rather than reassign `self.extras["log"]` so the metric is not clobbered.
+        if "log" not in self.extras:
+            self.extras["log"] = dict()
+        self.extras["log"].update({
             "dist_reward": (dist_reward_scale * dist_reward).mean(),
             "rot_reward": (rot_reward_scale * rot_reward).mean(),
             "open_reward": (open_reward_scale * open_reward).mean(),
@@ -471,8 +486,7 @@ class FrankaCabinetEnv(DirectRLEnv):
             "left_finger_distance_reward": (finger_reward_scale * lfinger_dist).mean(),
             "right_finger_distance_reward": (finger_reward_scale * rfinger_dist).mean(),
             "finger_dist_penalty": (finger_reward_scale * finger_dist_penalty).mean(),
-            "fitness_function": is_success.mean(),
-        }
+        })
 
         # bonus for opening drawer properly
         drawer_pos = cabinet_dof_pos[:, self.drawer_joint_idx]

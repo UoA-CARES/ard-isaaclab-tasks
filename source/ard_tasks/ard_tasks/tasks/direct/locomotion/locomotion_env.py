@@ -151,15 +151,24 @@ class LocomotionEnv(DirectRLEnv):
             self.motor_effort_ratio,
         )
 
-        # Fitness function: forward velocity in the local frame (progress toward target).
+        return total_reward
+
+    def _log_fitness(self) -> None:
+        """Log the fixed ARD evaluation metric (fitness_function).
+
+        Computed from environment state only and kept OUT of `_get_rewards`, so
+        the ARD framework can rewrite the reward without ever touching the metric
+        it is scored on. Fitness here is forward velocity in the local frame
+        (progress toward the target); called after `_compute_intermediate_values`
+        so `vel_loc` is current.
+        """
         if "log" not in self.extras:
             self.extras["log"] = dict()
         self.extras["log"]["fitness_function"] = self.vel_loc[:, 0].mean()
 
-        return total_reward
-
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         self._compute_intermediate_values()
+        self._log_fitness()
         time_out = self.episode_length_buf >= self.max_episode_length - 1
         died = self.torso_position[:, 2] < self.cfg.termination_height
         return died, time_out

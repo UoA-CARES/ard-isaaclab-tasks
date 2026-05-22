@@ -124,17 +124,25 @@ class CartpoleEnv(DirectRLEnv):
             self.reset_terminated,
         )
 
-        # Fitness function: steps before pole falls (episode length).
+        return total_reward
+
+    def _log_fitness(self) -> None:
+        """Log the fixed ARD evaluation metric (fitness_function).
+
+        Computed from environment state only and kept OUT of `_get_rewards`, so
+        the ARD framework can rewrite the reward without ever touching the metric
+        it is scored on. Fitness here is the episode length (steps before the
+        pole falls).
+        """
         if "log" not in self.extras:
             self.extras["log"] = dict()
         self.extras["log"]["fitness_function"] = self.episode_length_buf.float().mean()
-
-        return total_reward
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         self.joint_pos = self.cartpole.data.joint_pos
         self.joint_vel = self.cartpole.data.joint_vel
 
+        self._log_fitness()
         time_out = self.episode_length_buf >= self.max_episode_length - 1
         out_of_bounds = torch.any(torch.abs(self.joint_pos[:, self._cart_dof_idx]) > self.cfg.max_cart_pos, dim=1)
         out_of_bounds = out_of_bounds | torch.any(torch.abs(self.joint_pos[:, self._pole_dof_idx]) > math.pi / 2, dim=1)
