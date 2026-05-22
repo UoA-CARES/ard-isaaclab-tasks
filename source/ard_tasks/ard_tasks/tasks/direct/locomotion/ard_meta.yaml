@@ -1,0 +1,8 @@
+# ARD task metadata — used by ARD as --taskconfig directly.
+task: "Isaac-ARD-Humanoid-v0"
+env_file: "source/ard_tasks/ard_tasks/tasks/direct/locomotion/locomotion_env.py"
+description: >
+  Drive a humanoid robot to walk forward as fast as possible along the x-axis.
+  Maximise sustained forward velocity while keeping the robot upright and stable.
+  Avoid excessive joint torques, lateral drift, or falling.
+max_iterations: 100

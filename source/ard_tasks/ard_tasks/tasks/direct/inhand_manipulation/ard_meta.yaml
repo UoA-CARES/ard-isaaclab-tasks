@@ -1,0 +1,8 @@
+# ARD task metadata — used by ARD as --taskconfig directly.
+task: "Isaac-ARD-Allegro-Repose-v0"
+env_file: "source/ard_tasks/ard_tasks/tasks/direct/inhand_manipulation/inhand_manipulation_env.py"
+description: >
+  Repose a small object held in an Allegro dexterous hand to match a randomly
+  sampled target orientation. Maximise consecutive successes — each time the
+  object reaches the goal pose a new target is drawn — while preventing drops.
+max_iterations: 100

@@ -1,0 +1,9 @@
+# ARD task metadata — used by ARD as --taskconfig directly.
+task: "Isaac-ARD-Cartpole-v0"
+env_file: "source/ard_tasks/ard_tasks/tasks/direct/cartpole/cartpole_env.py"
+description: >
+  Balance a pole upright on a cart by applying horizontal forces to the cart.
+  Keep the pole as close to vertical and the cart as close to the track centre
+  as possible, for as long as possible, without the pole falling past the
+  vertical limit or the cart leaving its bounds.
+max_iterations: 100

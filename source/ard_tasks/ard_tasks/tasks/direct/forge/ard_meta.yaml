@@ -1,0 +1,8 @@
+# ARD task metadata — used by ARD as --taskconfig directly.
+task: "Isaac-ARD-Forge-NutThread-v0"
+env_file: "source/ard_tasks/ard_tasks/tasks/direct/forge/forge_env.py"
+description: >
+  Thread a nut fully onto a bolt using a robot manipulator under the FORGE
+  framework. Maximise the fraction of episodes in which the nut is successfully
+  threaded to the target depth, with precise force control to avoid cross-threading.
+max_iterations: 100

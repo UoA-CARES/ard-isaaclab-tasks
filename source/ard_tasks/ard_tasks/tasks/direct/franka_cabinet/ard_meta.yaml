@@ -1,0 +1,8 @@
+# ARD task metadata — used by ARD as --taskconfig directly.
+task: "Isaac-ARD-Franka-Cabinet-v0"
+env_file: "source/ard_tasks/ard_tasks/tasks/direct/franka_cabinet/franka_cabinet_env.py"
+description: >
+  Control a Franka Emika Panda arm to grasp the handle of a cabinet drawer and
+  pull it fully open. Maximise the fraction of episodes in which the drawer
+  reaches the fully-open terminal state, while keeping joint motion smooth.
+max_iterations: 100
