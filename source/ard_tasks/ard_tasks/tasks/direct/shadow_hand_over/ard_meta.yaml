@@ -5,4 +5,3 @@ description: >
   Pass an object between two Shadow dexterous hands. The left hand holds the
   object initially; both hands must cooperate to transfer it to the right hand
   and hold it stably. Maximise the fraction of successful hand-overs.
-max_iterations: 100

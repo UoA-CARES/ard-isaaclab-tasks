@@ -6,4 +6,3 @@ description: >
   Keep the pole as close to vertical and the cart as close to the track centre
   as possible, for as long as possible, without the pole falling past the
   vertical limit or the cart leaving its bounds.
-max_iterations: 100

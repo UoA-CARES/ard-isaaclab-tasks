@@ -5,4 +5,3 @@ description: >
   Repose a small object held in an Allegro dexterous hand to match a randomly
   sampled target orientation. Maximise consecutive successes — each time the
   object reaches the goal pose a new target is drawn — while preventing drops.
-max_iterations: 100

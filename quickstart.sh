@@ -8,9 +8,8 @@
 # wrapper directly.
 #
 # Usage: bash quickstart.sh [TASK_ID]      (default: Isaac-ARD-Cartpole-v0)
-#        MAX_ITERATIONS=1500 bash quickstart.sh Isaac-ARD-Humanoid-v0
 set -e
 TASK="${1:-Isaac-ARD-Cartpole-v0}"
 /workspace/isaaclab/isaaclab.sh -p scripts/train.py \
-    --task "$TASK" --headless --max_iterations "${MAX_ITERATIONS:-100}"
+    --task "$TASK" --headless
 echo "=== $TASK training complete ==="

@@ -5,4 +5,3 @@ description: >
   Thread a nut fully onto a bolt using a robot manipulator under the FORGE
   framework. Maximise the fraction of episodes in which the nut is successfully
   threaded to the target depth, with precise force control to avoid cross-threading.
-max_iterations: 100

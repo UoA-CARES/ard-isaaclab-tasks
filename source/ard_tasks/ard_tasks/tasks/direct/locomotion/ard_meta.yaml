@@ -5,4 +5,3 @@ description: >
   Drive a humanoid robot to walk forward as fast as possible along the x-axis.
   Maximise sustained forward velocity while keeping the robot upright and stable.
   Avoid excessive joint torques, lateral drift, or falling.
-max_iterations: 100
