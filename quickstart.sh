@@ -9,6 +9,9 @@
 #
 # Usage: bash quickstart.sh [TASK_ID]      (default: Isaac-ARD-Cartpole-v0)
 set -e
+
+/workspace/isaaclab/isaaclab.sh -p -m pip install -e source/ard_tasks
+
 TASK="${1:-Isaac-ARD-Cartpole-v0}"
 /workspace/isaaclab/isaaclab.sh -p scripts/train.py \
     --task "$TASK" --headless
