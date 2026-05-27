@@ -145,32 +145,47 @@ class InHandManipulationEnv(DirectRLEnv):
         must be computed inside this method. Return shape: (num_envs,).
         This method is the sole edit target for the ARD framework.
         """
-        (
-            total_reward,
+        goal_dist = torch.norm(self.object_pos - self.in_hand_pos, p=2, dim=-1)
+        rot_dist = rotation_distance(self.object_rot, self.goal_rot)
+
+        dist_rew = goal_dist * self.cfg.dist_reward_scale
+        rot_rew = 1.0 / (torch.abs(rot_dist) + self.cfg.rot_eps) * self.cfg.rot_reward_scale
+
+        action_penalty = torch.sum(self.actions**2, dim=-1)
+
+        # Total reward is: position distance + orientation alignment + action regularization + success bonus + fall penalty
+        total_reward = dist_rew + rot_rew + action_penalty * self.cfg.action_penalty_scale
+
+        # Find out which envs hit the goal and update successes count
+        goal_resets = torch.where(
+            torch.abs(rot_dist) <= self.cfg.success_tolerance,
+            torch.ones_like(self.reset_goal_buf),
             self.reset_goal_buf,
-            self.successes[:],
-            self.consecutive_successes[:],
-        ) = compute_rewards(
-            self.reset_buf,
-            self.reset_goal_buf,
-            self.successes,
-            self.consecutive_successes,
-            self.max_episode_length,
-            self.object_pos,
-            self.object_rot,
-            self.in_hand_pos,
-            self.goal_rot,
-            self.cfg.dist_reward_scale,
-            self.cfg.rot_reward_scale,
-            self.cfg.rot_eps,
-            self.actions,
-            self.cfg.action_penalty_scale,
-            self.cfg.success_tolerance,
-            self.cfg.reach_goal_bonus,
-            self.cfg.fall_dist,
-            self.cfg.fall_penalty,
-            self.cfg.av_factor,
         )
+        successes = self.successes + goal_resets
+
+        # Success bonus: orientation is within `success_tolerance` of goal orientation
+        total_reward = torch.where(goal_resets == 1, total_reward + self.cfg.reach_goal_bonus, total_reward)
+
+        # Fall penalty: distance to the goal is larger than a threshold
+        total_reward = torch.where(goal_dist >= self.cfg.fall_dist, total_reward + self.cfg.fall_penalty, total_reward)
+
+        # Check env termination conditions, including maximum success number
+        resets = torch.where(goal_dist >= self.cfg.fall_dist, torch.ones_like(self.reset_buf), self.reset_buf)
+
+        num_resets = torch.sum(resets)
+        finished_cons_successes = torch.sum(successes * resets.float())
+
+        cons_successes = torch.where(
+            num_resets > 0,
+            self.cfg.av_factor * finished_cons_successes / num_resets
+            + (1.0 - self.cfg.av_factor) * self.consecutive_successes,
+            self.consecutive_successes,
+        )
+
+        self.reset_goal_buf = goal_resets
+        self.successes[:] = successes
+        self.consecutive_successes[:] = cons_successes
 
         if "log" not in self.extras:
             self.extras["log"] = dict()
@@ -394,61 +409,3 @@ def rotation_distance(object_rot, target_rot):
     # Orientation alignment for the cube in hand and goal cube
     quat_diff = quat_mul(object_rot, quat_conjugate(target_rot))
     return 2.0 * torch.asin(torch.clamp(torch.norm(quat_diff[:, 1:4], p=2, dim=-1), max=1.0))  # changed quat convention
-
-
-@torch.jit.script
-def compute_rewards(
-    reset_buf: torch.Tensor,
-    reset_goal_buf: torch.Tensor,
-    successes: torch.Tensor,
-    consecutive_successes: torch.Tensor,
-    max_episode_length: float,
-    object_pos: torch.Tensor,
-    object_rot: torch.Tensor,
-    target_pos: torch.Tensor,
-    target_rot: torch.Tensor,
-    dist_reward_scale: float,
-    rot_reward_scale: float,
-    rot_eps: float,
-    actions: torch.Tensor,
-    action_penalty_scale: float,
-    success_tolerance: float,
-    reach_goal_bonus: float,
-    fall_dist: float,
-    fall_penalty: float,
-    av_factor: float,
-):
-    goal_dist = torch.norm(object_pos - target_pos, p=2, dim=-1)
-    rot_dist = rotation_distance(object_rot, target_rot)
-
-    dist_rew = goal_dist * dist_reward_scale
-    rot_rew = 1.0 / (torch.abs(rot_dist) + rot_eps) * rot_reward_scale
-
-    action_penalty = torch.sum(actions**2, dim=-1)
-
-    # Total reward is: position distance + orientation alignment + action regularization + success bonus + fall penalty
-    reward = dist_rew + rot_rew + action_penalty * action_penalty_scale
-
-    # Find out which envs hit the goal and update successes count
-    goal_resets = torch.where(torch.abs(rot_dist) <= success_tolerance, torch.ones_like(reset_goal_buf), reset_goal_buf)
-    successes = successes + goal_resets
-
-    # Success bonus: orientation is within `success_tolerance` of goal orientation
-    reward = torch.where(goal_resets == 1, reward + reach_goal_bonus, reward)
-
-    # Fall penalty: distance to the goal is larger than a threshold
-    reward = torch.where(goal_dist >= fall_dist, reward + fall_penalty, reward)
-
-    # Check env termination conditions, including maximum success number
-    resets = torch.where(goal_dist >= fall_dist, torch.ones_like(reset_buf), reset_buf)
-
-    num_resets = torch.sum(resets)
-    finished_cons_successes = torch.sum(successes * resets.float())
-
-    cons_successes = torch.where(
-        num_resets > 0,
-        av_factor * finished_cons_successes / num_resets + (1.0 - av_factor) * consecutive_successes,
-        consecutive_successes,
-    )
-
-    return reward, goal_resets, successes, cons_successes
