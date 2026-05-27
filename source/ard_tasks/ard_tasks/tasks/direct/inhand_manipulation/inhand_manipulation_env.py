@@ -55,8 +55,8 @@ class InHandManipulationEnv(DirectRLEnv):
         self.hand_dof_lower_limits = joint_pos_limits[..., 0]
         self.hand_dof_upper_limits = joint_pos_limits[..., 1]
 
-        # track goal resets
-        self.reset_goal_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        # goals reached this step (set in `_get_dones`, read by the designed reward)
+        self.goal_reached_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         # used to compare object position
         self.in_hand_pos = self.object.data.default_root_state[:, 0:3].clone()
         self.in_hand_pos[:, 2] -= 0.04
@@ -139,62 +139,32 @@ class InHandManipulationEnv(DirectRLEnv):
         return observations
 
     def _get_rewards(self) -> torch.Tensor:
-        """Compute per-env scalar reward.
+        """Compute per-env scalar reward. Return shape: (num_envs,).
 
-        All reward shaping, dense/sparse signals, and termination bonuses
-        must be computed inside this method. Return shape: (num_envs,).
-        This method is the sole edit target for the ARD framework.
+        This method is the sole edit target for the ARD framework. It must be a
+        PURE function of environment state: read freely, but do not mutate
+        ``self``. The task's goal stream and the fixed fitness metric
+        (``consecutive_successes``) are maintained in ``_get_dones`` — which runs
+        before this method each step — so rewriting the reward can never change
+        the task or the score it is graded on.
+
+        Useful state: ``self.object_pos``, ``self.object_rot``, ``self.goal_rot``,
+        ``self.in_hand_pos``, ``self.actions``, and ``self.goal_reached_buf``
+        (bool per env: reached its goal this step).
         """
         goal_dist = torch.norm(self.object_pos - self.in_hand_pos, p=2, dim=-1)
         rot_dist = rotation_distance(self.object_rot, self.goal_rot)
 
         dist_rew = goal_dist * self.cfg.dist_reward_scale
         rot_rew = 1.0 / (torch.abs(rot_dist) + self.cfg.rot_eps) * self.cfg.rot_reward_scale
-
         action_penalty = torch.sum(self.actions**2, dim=-1)
 
-        # Total reward is: position distance + orientation alignment + action regularization + success bonus + fall penalty
+        # position distance + orientation alignment + action regularization
         total_reward = dist_rew + rot_rew + action_penalty * self.cfg.action_penalty_scale
-
-        # Find out which envs hit the goal and update successes count
-        goal_resets = torch.where(
-            torch.abs(rot_dist) <= self.cfg.success_tolerance,
-            torch.ones_like(self.reset_goal_buf),
-            self.reset_goal_buf,
-        )
-        successes = self.successes + goal_resets
-
-        # Success bonus: orientation is within `success_tolerance` of goal orientation
-        total_reward = torch.where(goal_resets == 1, total_reward + self.cfg.reach_goal_bonus, total_reward)
-
-        # Fall penalty: distance to the goal is larger than a threshold
+        # success bonus: orientation reached the goal this step (trusted signal)
+        total_reward = torch.where(self.goal_reached_buf, total_reward + self.cfg.reach_goal_bonus, total_reward)
+        # fall penalty: object has fallen out of reach
         total_reward = torch.where(goal_dist >= self.cfg.fall_dist, total_reward + self.cfg.fall_penalty, total_reward)
-
-        # Check env termination conditions, including maximum success number
-        resets = torch.where(goal_dist >= self.cfg.fall_dist, torch.ones_like(self.reset_buf), self.reset_buf)
-
-        num_resets = torch.sum(resets)
-        finished_cons_successes = torch.sum(successes * resets.float())
-
-        cons_successes = torch.where(
-            num_resets > 0,
-            self.cfg.av_factor * finished_cons_successes / num_resets
-            + (1.0 - self.cfg.av_factor) * self.consecutive_successes,
-            self.consecutive_successes,
-        )
-
-        self.reset_goal_buf = goal_resets
-        self.successes[:] = successes
-        self.consecutive_successes[:] = cons_successes
-
-        if "log" not in self.extras:
-            self.extras["log"] = dict()
-        self.extras["log"]["consecutive_successes"] = self.consecutive_successes.mean()
-
-        # reset goals if the goal has been reached
-        goal_env_ids = self.reset_goal_buf.nonzero(as_tuple=False).squeeze(-1)
-        if len(goal_env_ids) > 0:
-            self._reset_target_pose(goal_env_ids)
 
         return total_reward
 
@@ -202,29 +172,40 @@ class InHandManipulationEnv(DirectRLEnv):
         """Log the fixed ARD evaluation metric (fitness_function).
 
         Kept OUT of `_get_rewards` so the ARD framework can rewrite the reward
-        without touching the metric it is scored on. Fitness here is
-        `consecutive_successes` (goal rotations reached within an episode), a
-        running average maintained as a side effect of the reward; logging it from
-        `_get_dones` reflects the value at the start of the step (a one-step lag
-        that is immaterial for this smoothed metric).
+        without touching the metric it is scored on. Fitness is
+        `consecutive_successes` (running average of goal rotations reached per
+        episode), updated just above in `_get_dones` from environment state.
         """
         if "log" not in self.extras:
             self.extras["log"] = dict()
         self.extras["log"]["fitness_function"] = self.consecutive_successes.mean()
+        self.extras["log"]["consecutive_successes"] = self.consecutive_successes.mean()
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         self._compute_intermediate_values()
-        self._log_fitness()
 
-        # reset when cube has fallen
+        # --- Trusted task mechanics + fitness bookkeeping --------------------
+        # Detect reached goals, advance the success counters, maintain the
+        # running success average (the fitness metric), and re-sample reached
+        # goals. This defines the task (the stream of goals) and produces the
+        # fixed metric, so it lives here in code ARD does not edit; the designed
+        # reward in `_get_rewards` only *reads* `goal_reached_buf`/`successes`.
         goal_dist = torch.norm(self.object_pos - self.in_hand_pos, p=2, dim=-1)
+        rot_dist = rotation_distance(self.object_rot, self.goal_rot)
+
+        goal_reached = torch.abs(rot_dist) <= self.cfg.success_tolerance
+        self.goal_reached_buf = goal_reached
+        self.successes += goal_reached.float()
+
+        # --- Termination conditions ------------------------------------------
+        # reset when cube has fallen
         out_of_reach = goal_dist >= self.cfg.fall_dist
 
         if self.cfg.max_consecutive_success > 0:
-            # Reset progress (episode length buf) on goal envs if max_consecutive_success > 0
-            rot_dist = rotation_distance(self.object_rot, self.goal_rot)
+            # Reset progress (episode length buf) on goal envs so they are not
+            # timed out merely for reaching goals.
             self.episode_length_buf = torch.where(
-                torch.abs(rot_dist) <= self.cfg.success_tolerance,
+                goal_reached,
                 torch.zeros_like(self.episode_length_buf),
                 self.episode_length_buf,
             )
@@ -233,6 +214,24 @@ class InHandManipulationEnv(DirectRLEnv):
         time_out = self.episode_length_buf >= self.max_episode_length - 1
         if self.cfg.max_consecutive_success > 0:
             time_out = time_out | max_success_reached
+
+        # Finalize the running success average over envs resetting this step.
+        resets = out_of_reach | time_out
+        num_resets = torch.sum(resets)
+        if num_resets > 0:
+            finished_cons_successes = torch.sum(self.successes * resets.float())
+            self.consecutive_successes[:] = (
+                self.cfg.av_factor * finished_cons_successes / num_resets
+                + (1.0 - self.cfg.av_factor) * self.consecutive_successes
+            )
+
+        self._log_fitness()
+
+        # Re-sample goals reached this step (advance the goal stream).
+        goal_env_ids = goal_reached.nonzero(as_tuple=False).squeeze(-1)
+        if len(goal_env_ids) > 0:
+            self._reset_target_pose(goal_env_ids)
+
         return out_of_reach, time_out
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
@@ -293,8 +292,6 @@ class InHandManipulationEnv(DirectRLEnv):
         self.goal_rot[env_ids] = new_rot
         goal_pos = self.goal_pos + self.scene.env_origins
         self.goal_markers.visualize(goal_pos, self.goal_rot)
-
-        self.reset_goal_buf[env_ids] = 0
 
     def _compute_intermediate_values(self):
         # data for hand
