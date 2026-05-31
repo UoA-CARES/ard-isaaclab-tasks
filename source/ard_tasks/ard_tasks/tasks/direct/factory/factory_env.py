@@ -403,22 +403,8 @@ class FactoryEnv(DirectRLEnv):
             self.extras[f"logs_rew_{rew_name}"] = rew.mean()
 
     def _get_rewards(self):
-        """Update rewards and compute success statistics."""
-        # Get successful and failed envs at current timestep
-        check_rot = self.cfg_task.name == "nut_thread"
-        curr_successes = self._get_curr_successes(
-            success_threshold=self.cfg_task.success_threshold, check_rot=check_rot
-        )
 
-        rew_dict, rew_scales = self._get_factory_rew_dict(curr_successes)
 
-        rew_buf = torch.zeros_like(rew_dict["kp_coarse"])
-        for rew_name, rew in rew_dict.items():
-            rew_buf += rew_dict[rew_name] * rew_scales[rew_name]
-
-        self.prev_actions = self.actions.clone()
-
-        self._log_factory_metrics(rew_dict, curr_successes)
         return rew_buf
 
     def _get_factory_rew_dict(self, curr_successes):

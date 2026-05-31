@@ -160,22 +160,7 @@ class CartpoleCameraEnv(DirectRLEnv):
         return observations
 
     def _get_rewards(self) -> torch.Tensor:
-        """Compute per-env scalar reward.
 
-        All reward shaping, dense/sparse signals, and termination bonuses
-        must be computed inside this method. Return shape: (num_envs,).
-        This method is the sole edit target for the ARD framework.
-        """
-        pole_pos = self.joint_pos[:, self._pole_dof_idx[0]]
-        pole_vel = self.joint_vel[:, self._pole_dof_idx[0]]
-        cart_vel = self.joint_vel[:, self._cart_dof_idx[0]]
-
-        rew_alive = self.cfg.rew_scale_alive * (1.0 - self.reset_terminated.float())
-        rew_termination = self.cfg.rew_scale_terminated * self.reset_terminated.float()
-        rew_pole_pos = self.cfg.rew_scale_pole_pos * torch.sum(torch.square(pole_pos).unsqueeze(dim=1), dim=-1)
-        rew_cart_vel = self.cfg.rew_scale_cart_vel * torch.sum(torch.abs(cart_vel).unsqueeze(dim=1), dim=-1)
-        rew_pole_vel = self.cfg.rew_scale_pole_vel * torch.sum(torch.abs(pole_vel).unsqueeze(dim=1), dim=-1)
-        total_reward = rew_alive + rew_termination + rew_pole_pos + rew_cart_vel + rew_pole_vel
 
         return total_reward
 

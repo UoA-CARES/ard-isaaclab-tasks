@@ -126,48 +126,7 @@ class LocomotionEnv(DirectRLEnv):
         return observations
 
     def _get_rewards(self) -> torch.Tensor:
-        """Compute per-env scalar reward.
 
-        All reward shaping, dense/sparse signals, and termination bonuses
-        must be computed inside this method. Return shape: (num_envs,).
-        This method is the sole edit target for the ARD framework.
-        """
-        heading_weight_tensor = torch.ones_like(self.heading_proj) * self.cfg.heading_weight
-        heading_reward = torch.where(
-            self.heading_proj > 0.8, heading_weight_tensor, self.cfg.heading_weight * self.heading_proj / 0.8
-        )
-
-        # aligning up axis of robot and environment
-        up_reward = torch.zeros_like(heading_reward)
-        up_reward = torch.where(self.up_proj > 0.93, up_reward + self.cfg.up_weight, up_reward)
-
-        # energy penalty for movement
-        actions_cost = torch.sum(self.actions**2, dim=-1)
-        electricity_cost = torch.sum(
-            torch.abs(self.actions * self.dof_vel * self.cfg.dof_vel_scale) * self.motor_effort_ratio.unsqueeze(0),
-            dim=-1,
-        )
-
-        # dof at limit cost
-        dof_at_limit_cost = torch.sum(self.dof_pos_scaled > 0.98, dim=-1)
-
-        # reward for duration of staying alive
-        alive_reward = torch.ones_like(self.potentials) * self.cfg.alive_reward_scale
-        progress_reward = self.potentials - self.prev_potentials
-
-        total_reward = (
-            progress_reward
-            + alive_reward
-            + up_reward
-            + heading_reward
-            - self.cfg.actions_cost_scale * actions_cost
-            - self.cfg.energy_cost_scale * electricity_cost
-            - dof_at_limit_cost
-        )
-        # adjust reward for fallen agents
-        total_reward = torch.where(
-            self.reset_terminated, torch.ones_like(total_reward) * self.cfg.death_cost, total_reward
-        )
 
         return total_reward
 

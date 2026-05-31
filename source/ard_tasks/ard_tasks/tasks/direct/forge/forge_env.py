@@ -230,58 +230,7 @@ class ForgeEnv(FactoryEnv):
         )
 
     def _get_rewards(self) -> torch.Tensor:
-        """Compute per-env scalar reward.
 
-        All reward shaping, dense/sparse signals, and termination bonuses
-        must be computed inside this method. Return shape: (num_envs,).
-        This method is the sole edit target for the ARD framework.
-        """
-        # --- Factory base reward (inlined from FactoryEnv._get_rewards) ---
-        check_rot = self.cfg_task.name == "nut_thread"
-        curr_successes = self._get_curr_successes(
-            success_threshold=self.cfg_task.success_threshold, check_rot=check_rot
-        )
-        factory_rew_dict, factory_rew_scales = self._get_factory_rew_dict(curr_successes)
-        rew_buf = torch.zeros_like(factory_rew_dict["kp_coarse"])
-        for rew_name in factory_rew_dict:
-            rew_buf += factory_rew_dict[rew_name] * factory_rew_scales[rew_name]
-        self.prev_actions = self.actions.clone()
-        self._log_factory_metrics(factory_rew_dict, curr_successes)
-
-        # --- Forge-specific reward terms ---
-        rew_dict, rew_scales = {}, {}
-        # Calculate action penalty for the asset-relative action space.
-        pos_error = torch.norm(self.delta_pos, p=2, dim=-1) / self.cfg.ctrl.pos_action_threshold[0]
-        rot_error = torch.abs(self.delta_yaw) / self.cfg.ctrl.rot_action_threshold[0]
-        # Contact penalty.
-        contact_force = torch.norm(self.force_sensor_smooth[:, 0:3], p=2, dim=-1, keepdim=False)
-        contact_penalty = torch.nn.functional.relu(contact_force - self.contact_penalty_thresholds)
-        # Add success prediction rewards.
-        check_rot = self.cfg_task.name == "nut_thread"
-        true_successes = self._get_curr_successes(
-            success_threshold=self.cfg_task.success_threshold, check_rot=check_rot
-        )
-        policy_success_pred = (self.actions[:, 6] + 1) / 2  # rescale from [-1, 1] to [0, 1]
-        success_pred_error = (true_successes.float() - policy_success_pred).abs()
-        # Delay success prediction penalty until some successes have occurred.
-        if true_successes.float().mean() >= self.cfg_task.delay_until_ratio:
-            self.success_pred_scale = 1.0
-
-        # Add new FORGE reward terms.
-        rew_dict = {
-            "action_penalty_asset": pos_error + rot_error,
-            "contact_penalty": contact_penalty,
-            "success_pred_error": success_pred_error,
-        }
-        rew_scales = {
-            "action_penalty_asset": -self.cfg_task.action_penalty_asset_scale,
-            "contact_penalty": -self.cfg_task.contact_penalty_scale,
-            "success_pred_error": -self.success_pred_scale,
-        }
-        for rew_name, rew in rew_dict.items():
-            rew_buf += rew_dict[rew_name] * rew_scales[rew_name]
-
-        self._log_forge_metrics(rew_dict, policy_success_pred)
 
         return rew_buf
 

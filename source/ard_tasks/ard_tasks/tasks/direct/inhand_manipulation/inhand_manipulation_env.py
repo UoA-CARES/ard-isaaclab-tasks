@@ -139,32 +139,7 @@ class InHandManipulationEnv(DirectRLEnv):
         return observations
 
     def _get_rewards(self) -> torch.Tensor:
-        """Compute per-env scalar reward. Return shape: (num_envs,).
 
-        This method is the sole edit target for the ARD framework. It must be a
-        PURE function of environment state: read freely, but do not mutate
-        ``self``. The task's goal stream and the fixed fitness metric
-        (``consecutive_successes``) are maintained in ``_get_dones`` — which runs
-        before this method each step — so rewriting the reward can never change
-        the task or the score it is graded on.
-
-        Useful state: ``self.object_pos``, ``self.object_rot``, ``self.goal_rot``,
-        ``self.in_hand_pos``, ``self.actions``, and ``self.goal_reached_buf``
-        (bool per env: reached its goal this step).
-        """
-        goal_dist = torch.norm(self.object_pos - self.in_hand_pos, p=2, dim=-1)
-        rot_dist = rotation_distance(self.object_rot, self.goal_rot)
-
-        dist_rew = goal_dist * self.cfg.dist_reward_scale
-        rot_rew = 1.0 / (torch.abs(rot_dist) + self.cfg.rot_eps) * self.cfg.rot_reward_scale
-        action_penalty = torch.sum(self.actions**2, dim=-1)
-
-        # position distance + orientation alignment + action regularization
-        total_reward = dist_rew + rot_rew + action_penalty * self.cfg.action_penalty_scale
-        # success bonus: orientation reached the goal this step (trusted signal)
-        total_reward = torch.where(self.goal_reached_buf, total_reward + self.cfg.reach_goal_bonus, total_reward)
-        # fall penalty: object has fallen out of reach
-        total_reward = torch.where(goal_dist >= self.cfg.fall_dist, total_reward + self.cfg.fall_penalty, total_reward)
 
         return total_reward
 

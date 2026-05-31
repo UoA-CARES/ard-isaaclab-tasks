@@ -276,21 +276,7 @@ class ShadowHandOverEnv(DirectMARLEnv):
         return states
 
     def _get_rewards(self) -> dict[str, torch.Tensor]:
-        """Compute per-agent per-env scalar rewards.
 
-        Keys are agent IDs (matching the env's agent set); each value
-        is a tensor of shape (num_envs,). All reward shaping must live here.
-        This method is the sole edit target for the ARD framework.
-        """
-        # compute reward
-        goal_dist = torch.norm(self.object_pos - self.goal_pos, p=2, dim=-1)
-        rew_dist = 2 * torch.exp(-self.cfg.dist_reward_scale * goal_dist)
-
-        # log reward components
-        if "log" not in self.extras:
-            self.extras["log"] = dict()
-        self.extras["log"]["dist_reward"] = rew_dist.mean()
-        self.extras["log"]["dist_goal"] = goal_dist.mean()
 
         return {"right_hand": rew_dist, "left_hand": rew_dist}
 
