@@ -9,6 +9,25 @@
 #
 # Extra flags after the script name are forwarded to train.py, e.g.
 #   scripts/run_all_experiments.sh --num_envs 1024
+#
+# -----------------------------------------------------------------------------
+# Reference run (defaults, --headless), 2026-05-31 -> 2026-06-01
+#   Task                           Result   Wall time
+#   Isaac-ARD-Cartpole-v0          OK             92s  (~1.5 min)
+#   Isaac-ARD-Humanoid-v0          OK            667s  (~11 min)
+#   Isaac-ARD-Franka-Cabinet-v0    OK           1532s  (~26 min)
+#   Isaac-ARD-Allegro-Repose-v0    OK           8467s  (~2.4 h)
+#   Isaac-ARD-Forge-NutThread-v0   OK          30904s  (~8.6 h)
+#   Isaac-ARD-Shadow-Hand-Over-v0  OK           3089s  (~51 min)
+#   Total: 44751s (~12.4 h) -- all 6 tasks succeeded.
+#
+# Machine configuration for the run above:
+#   OS:     Ubuntu 22.04.5 LTS (kernel 6.8.0-124-generic)
+#   CPU:    Intel Core i9-10900 @ 2.80GHz (10 cores / 10 threads, up to 5.2 GHz)
+#   RAM:    30 GiB
+#   GPU:    NVIDIA GeForce RTX 3080, 10 GiB VRAM (driver 595.71.05)
+#   CUDA:   11.8 (V11.8.89)
+# -----------------------------------------------------------------------------
 
 set -u  # do not set -e: one failing task should not abort the rest
 
