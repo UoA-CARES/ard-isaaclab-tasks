@@ -1,6 +1,6 @@
 # ard-isaaclab-tasks
 
-`ard-isaaclab-tasks` is the IsaacLab task substrate for the **Autonomous RL Designer (ARD)**: a research framework that uses an LLM to generate reward functions, trains them with PPO in IsaacLab, and reflects on VLM evaluations of rollout videos to iterate. This repo holds only the RL training side — six tasks copied verbatim from the official IsaacLab 2.3.X source, registered under `Isaac-ARD-*` IDs, with each task's reward computation isolated in a single `_get_rewards` method that ARD's code generator targets via AST rewriting.
+`ard-isaaclab-tasks` is the IsaacLab task substrate for the **Autonomous RL Designer (ARD)**: a research framework that uses an LLM to generate reward functions, trains them with PPO in IsaacLab, and reflects on VLM evaluations of rollout videos to iterate. This repo holds only the RL training side — currently a single task (Cartpole) copied verbatim from the official IsaacLab 2.3.X source, registered under an `Isaac-ARD-*` ID, with its reward computation isolated in a single `_get_rewards` method that ARD's code generator targets via AST rewriting. Cartpole is kept as a fast smoke test; additional tasks were removed in v0.3.0 (they remain available at tag `v0.2.0`).
 
 This is an **external Isaac Lab project** (generated via `isaaclab.sh --new`): the source tree lives outside the core IsaacLab repository and is installed as an editable extension against an existing IsaacLab 2.3.X install.
 
@@ -32,13 +32,8 @@ This is an **external Isaac Lab project** (generated via `isaaclab.sh --new`): t
 | Task ID | Description |
 | --- | --- |
 | `Isaac-ARD-Cartpole-v0` | Classic cartpole balancing — single-agent, low-DoF baseline. |
-| `Isaac-ARD-Humanoid-v0` | 21-DoF humanoid forward locomotion on flat terrain. |
-| `Isaac-ARD-Franka-Cabinet-v0` | Franka arm opens a cabinet drawer (contact-rich manipulation). |
-| `Isaac-ARD-Allegro-Repose-v0` | Allegro hand reposes a cube to a target orientation (dexterous, high-DoF). |
-| `Isaac-ARD-Forge-NutThread-v0` | Forge nut-threading on a bolt — contact-rich, sparse, long-horizon. |
-| `Isaac-ARD-Shadow-Hand-Over-v0` | Two Shadow hands hand off a cube (multi-agent, `DirectMARLEnv`). |
 
-The six tasks were chosen to span a 7-dimension binary feature space (high-DoF, contact-rich, sparse reward, long-horizon, manipulation, dexterous hand, multi-agent) with no two tasks sharing a feature signature.
+Only Cartpole is registered in this version — it serves as a fast smoke test for the ARD reward-generation pipeline. The earlier multi-task suite (Humanoid, Franka-Cabinet, Allegro-Repose, Forge-NutThread, Shadow-Hand-Over) was removed in v0.3.0 and remains available at tag `v0.2.0`.
 
 List the installed `Isaac-ARD-*` IDs at runtime:
 
@@ -55,11 +50,6 @@ Once the conda/uv env is activated, `python` already points at Isaac Sim's inter
 
 ```bash
 python scripts/train.py --task Isaac-ARD-Cartpole-v0 --headless
-python scripts/train.py --task Isaac-ARD-Humanoid-v0 --headless
-python scripts/train.py --task Isaac-ARD-Franka-Cabinet-v0 --headless
-python scripts/train.py --task Isaac-ARD-Allegro-Repose-v0 --headless
-python scripts/train.py --task Isaac-ARD-Forge-NutThread-v0 --headless
-python scripts/train.py --task Isaac-ARD-Shadow-Hand-Over-v0 --headless
 ```
 
 If Isaac Lab is not on PATH, use the wrapper instead — e.g.:
@@ -136,22 +126,12 @@ into the working directory and applies the CARES flags for you).
 Every task's environment class exposes its reward computation in a single method with a fixed signature so ARD's AST-level code generator can rewrite it unambiguously:
 
 ```python
-# Single-agent tasks (Cartpole, Humanoid, Franka-Cabinet, Allegro-Repose, Forge-NutThread)
+# Cartpole (single-agent)
 def _get_rewards(self) -> torch.Tensor:
     """Compute per-env scalar reward.
 
     All reward shaping, dense/sparse signals, and termination bonuses
     must be computed inside this method. Return shape: (num_envs,).
-    This method is the sole edit target for the ARD framework.
-    """
-    ...
-
-# Multi-agent task (Shadow-Hand-Over)
-def _get_rewards(self) -> dict[str, torch.Tensor]:
-    """Compute per-agent per-env scalar rewards.
-
-    Keys are agent IDs (matching the env's agent set); each value
-    is a tensor of shape (num_envs,). All reward shaping must live here.
     This method is the sole edit target for the ARD framework.
     """
     ...
@@ -167,15 +147,7 @@ The layout mirrors what `<isaaclab>/isaaclab.sh --new` produces for an external 
 ard-isaaclab-tasks/
 ├── source/ard_tasks/         # editable extension (`pip install -e`)
 │   └── ard_tasks/tasks/direct/
-│       ├── cartpole/         # verbatim copy + Isaac-ARD-* register call
-│       ├── humanoid/
-│       ├── franka_cabinet/
-│       ├── allegro_hand/
-│       ├── forge/            # depends on factory/
-│       ├── shadow_hand_over/
-│       ├── factory/          # parent env for Forge tasks (not registered)
-│       ├── inhand_manipulation/  # parent env for Allegro (not registered)
-│       └── locomotion/       # parent env for Humanoid (not registered)
+│       └── cartpole/         # verbatim copy + Isaac-ARD-* register call
 ├── scripts/
 │   ├── train.py              # rl_games train entry point
 │   ├── list_envs.py
