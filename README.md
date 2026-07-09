@@ -1,6 +1,12 @@
 # ard-isaaclab-tasks
 
-`ard-isaaclab-tasks` is the IsaacLab task substrate for the **Autonomous RL Designer (ARD)**: a research framework that uses an LLM to generate reward functions, trains them with PPO in IsaacLab, and reflects on VLM evaluations of rollout videos to iterate. This repo holds only the RL training side — currently a single task (Cartpole) copied verbatim from the official IsaacLab 2.3.X source, registered under an `Isaac-ARD-*` ID, with its reward computation isolated in a single `_get_rewards` method that ARD's code generator targets via AST rewriting. Cartpole is kept as a fast smoke test; additional tasks were removed in v0.3.0 (they remain available at tag `v0.2.0`).
+`ard-isaaclab-tasks` is the IsaacLab task substrate for the **Autonomous RL Designer (ARD)**: a research framework that uses an LLM to generate reward functions, trains them with PPO in IsaacLab, and reflects on VLM evaluations of rollout videos to iterate. This repo holds only the RL training side. It registers tasks under `Isaac-ARD-*` IDs, all copied verbatim from the official IsaacLab 2.3.X source:
+
+- **Cartpole** — a fast smoke test whose reward computation is isolated in a single `_get_rewards` method that ARD's code generator targets via AST rewriting.
+- **Shadow-Hand cube-repose (state)** — a verbatim migration of the official `Isaac-Repose-Cube-Shadow-Direct-v0` benchmark. It is a frozen reference benchmark: its settings, configuration and reward are unchanged from the official source and are **not** ARD edit targets.
+- **Shadow-Hand cube-repose (vision)** — a verbatim migration of the official `Isaac-Repose-Cube-Shadow-Vision-Direct-v0` benchmark (TiledCamera + CNN feature extractor). Also a frozen reference benchmark and **not** an ARD edit target.
+
+The earlier multi-task suite was removed in v0.3.0 and remains available at tag `v0.2.0`.
 
 This is an **external Isaac Lab project** (generated via `isaaclab.sh --new`): the source tree lives outside the core IsaacLab repository and is installed as an editable extension against an existing IsaacLab 2.3.X install.
 
@@ -31,9 +37,13 @@ This is an **external Isaac Lab project** (generated via `isaaclab.sh --new`): t
 
 | Task ID | Description |
 | --- | --- |
-| `Isaac-ARD-Cartpole-v0` | Classic cartpole balancing — single-agent, low-DoF baseline. |
+| `Isaac-ARD-Cartpole-v0` | Classic cartpole balancing — single-agent, low-DoF baseline. ARD reward edit target. |
+| `Isaac-ARD-Repose-Cube-Shadow-Direct-v0` | Shadow Hand reposes a cube to a target orientation from **state** observations. Verbatim migration of the official `Isaac-Repose-Cube-Shadow-Direct-v0` benchmark — frozen, not an ARD edit target. |
+| `Isaac-ARD-Repose-Cube-Shadow-Vision-Direct-v0` | Shadow Hand reposes a cube to a target orientation from **vision** (TiledCamera + CNN feature extractor). Verbatim migration of the official `Isaac-Repose-Cube-Shadow-Vision-Direct-v0` benchmark — frozen, not an ARD edit target. |
 
-Only Cartpole is registered in this version — it serves as a fast smoke test for the ARD reward-generation pipeline. The earlier multi-task suite (Humanoid, Franka-Cabinet, Allegro-Repose, Forge-NutThread, Shadow-Hand-Over) was removed in v0.3.0 and remains available at tag `v0.2.0`.
+A play/eval variant `Isaac-ARD-Repose-Cube-Shadow-Vision-Direct-Play-v0` (fewer envs) is also registered. The earlier multi-task suite (Humanoid, Franka-Cabinet, Allegro-Repose, Forge-NutThread, Shadow-Hand-Over) was removed in v0.3.0 and remains available at tag `v0.2.0`.
+
+> The Shadow tasks register under the `Isaac-ARD-` prefix (not the official `Isaac-Repose-...` IDs) solely to avoid a gym duplicate-registration clash — `scripts/train.py` imports `isaaclab_tasks`, which already registers the official IDs. Every setting, cfg entry point and agent hyperparameter is otherwise identical to the official benchmark.
 
 List the installed `Isaac-ARD-*` IDs at runtime:
 
@@ -42,7 +52,7 @@ python scripts/list_envs.py
 # or: <isaaclab>/isaaclab.sh -p scripts/list_envs.py
 ```
 
-> The bundled `scripts/list_envs.py` filters by the `"Template-"` prefix. Either edit that prefix to `"Isaac-ARD-"`, or simply: `python -c "import gymnasium as gym; import ard_tasks; print([k for k in gym.envs.registry if 'ARD' in k])"`.
+`scripts/list_envs.py` filters the registry by the `"Isaac-ARD-"` prefix, so it prints exactly the tasks this repo registers.
 
 ## Training
 
@@ -50,6 +60,9 @@ Once the conda/uv env is activated, `python` already points at Isaac Sim's inter
 
 ```bash
 python scripts/train.py --task Isaac-ARD-Cartpole-v0 --headless
+
+# Shadow-Hand vision benchmark — a camera task, so --enable_cameras is required:
+python scripts/train.py --task Isaac-ARD-Repose-Cube-Shadow-Vision-Direct-v0 --headless --enable_cameras
 ```
 
 If Isaac Lab is not on PATH, use the wrapper instead — e.g.:
@@ -147,7 +160,9 @@ The layout mirrors what `<isaaclab>/isaaclab.sh --new` produces for an external 
 ard-isaaclab-tasks/
 ├── source/ard_tasks/         # editable extension (`pip install -e`)
 │   └── ard_tasks/tasks/direct/
-│       └── cartpole/         # verbatim copy + Isaac-ARD-* register call
+│       ├── cartpole/         # verbatim copy + Isaac-ARD-* register call
+│       ├── inhand_manipulation/  # shared in-hand env (InHandManipulationEnv)
+│       └── shadow_hand/      # verbatim copy + Isaac-ARD-* register calls (state + vision)
 ├── scripts/
 │   ├── train.py              # rl_games train entry point
 │   ├── list_envs.py
