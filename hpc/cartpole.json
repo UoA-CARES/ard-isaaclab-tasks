@@ -1,0 +1,9 @@
+{
+  "job_name": "ard_cartpole_smoke",
+  "image": "130.216.238.2:5500/cli797_ard-isaaclab:2.3.2",
+  "command": "bash /opt/ard-isaaclab-tasks/scripts/hpc_entrypoint.sh --task Isaac-ARD-Cartpole-v0 --max_iterations 150",
+  "max_runtime_hours": 1.0,
+  "required_datasets": [],
+  "required_worker_ids": [],
+  "env": {}
+}
