@@ -139,56 +139,48 @@ class InHandManipulationEnv(DirectRLEnv):
         return observations
 
     def _get_rewards(self) -> torch.Tensor:
-        (
-            total_reward,
-            self.reset_goal_buf,
-            self.successes[:],
-            self.consecutive_successes[:],
-        ) = compute_rewards(
-            self.reset_buf,
-            self.reset_goal_buf,
-            self.successes,
-            self.consecutive_successes,
-            self.max_episode_length,
-            self.object_pos,
-            self.object_rot,
-            self.in_hand_pos,
-            self.goal_rot,
-            self.cfg.dist_reward_scale,
-            self.cfg.rot_reward_scale,
-            self.cfg.rot_eps,
-            self.actions,
-            self.cfg.action_penalty_scale,
-            self.cfg.success_tolerance,
-            self.cfg.reach_goal_bonus,
-            self.cfg.fall_dist,
-            self.cfg.fall_penalty,
-            self.cfg.av_factor,
+        """Compute per-env scalar reward.
+
+        All reward shaping, dense/sparse signals, and termination bonuses
+        must be computed inside this method. Return shape: (num_envs,).
+        This method is the sole edit target for the ARD framework.
+
+        Success tracking, goal resets, and the ``fitness_function`` metric live
+        in ``_update_success_metrics`` (called from ``_get_dones``) so purging
+        this method never disturbs the score ARD is evaluated on. The state this
+        reward reads is prepared before the call: ``self.goal_dist``,
+        ``self.rot_dist`` and ``self.goal_resets``.
+        """
+        dist_rew = self.goal_dist * self.cfg.dist_reward_scale
+        rot_rew = 1.0 / (torch.abs(self.rot_dist) + self.cfg.rot_eps) * self.cfg.rot_reward_scale
+        action_penalty = torch.sum(self.actions**2, dim=-1)
+
+        total_reward = dist_rew + rot_rew + action_penalty * self.cfg.action_penalty_scale
+        # success bonus: object orientation within `success_tolerance` of the goal this step
+        total_reward = torch.where(self.goal_resets, total_reward + self.cfg.reach_goal_bonus, total_reward)
+        # fall penalty: object drifted past `fall_dist` from the in-hand position
+        total_reward = torch.where(
+            self.goal_dist >= self.cfg.fall_dist, total_reward + self.cfg.fall_penalty, total_reward
         )
-
-        if "log" not in self.extras:
-            self.extras["log"] = dict()
-        self.extras["log"]["consecutive_successes"] = self.consecutive_successes.mean()
-
-        # reset goals if the goal has been reached
-        goal_env_ids = self.reset_goal_buf.nonzero(as_tuple=False).squeeze(-1)
-        if len(goal_env_ids) > 0:
-            self._reset_target_pose(goal_env_ids)
 
         return total_reward
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         self._compute_intermediate_values()
 
+        # Distances reused by rewards, dones, and success metrics. Stored on self
+        # so `_get_rewards` can read them without recomputing, and without holding
+        # any task/fitness logic that must survive reward purging.
+        self.goal_dist = torch.norm(self.object_pos - self.in_hand_pos, p=2, dim=-1)
+        self.rot_dist = rotation_distance(self.object_rot, self.goal_rot)
+
         # reset when cube has fallen
-        goal_dist = torch.norm(self.object_pos - self.in_hand_pos, p=2, dim=-1)
-        out_of_reach = goal_dist >= self.cfg.fall_dist
+        out_of_reach = self.goal_dist >= self.cfg.fall_dist
 
         if self.cfg.max_consecutive_success > 0:
             # Reset progress (episode length buf) on goal envs if max_consecutive_success > 0
-            rot_dist = rotation_distance(self.object_rot, self.goal_rot)
             self.episode_length_buf = torch.where(
-                torch.abs(rot_dist) <= self.cfg.success_tolerance,
+                torch.abs(self.rot_dist) <= self.cfg.success_tolerance,
                 torch.zeros_like(self.episode_length_buf),
                 self.episode_length_buf,
             )
@@ -197,7 +189,51 @@ class InHandManipulationEnv(DirectRLEnv):
         time_out = self.episode_length_buf >= self.max_episode_length - 1
         if self.cfg.max_consecutive_success > 0:
             time_out = time_out | max_success_reached
+
+        # Update successes, goal resets, and the ARD fitness metric OUTSIDE the
+        # reward so `_get_rewards` can be purged/regenerated without touching them.
+        self._update_success_metrics(out_of_reach, time_out)
         return out_of_reach, time_out
+
+    def _update_success_metrics(self, out_of_reach: torch.Tensor, time_out: torch.Tensor) -> None:
+        """Update success counters, goal resets, and the ARD fitness metric.
+
+        Kept OUT of ``_get_rewards`` (the ARD edit target). Runs at the end of
+        ``_get_dones``, before ``_get_rewards``, and prepares ``self.goal_resets``
+        for the reward's success bonus. ``self.goal_resets`` is an independent
+        tensor, so the goal-pose reset below (which zeroes ``self.reset_goal_buf``)
+        does not clear the flags the reward still needs to read.
+        """
+        # Envs whose object orientation reached the goal this step.
+        self.goal_resets = torch.where(
+            torch.abs(self.rot_dist) <= self.cfg.success_tolerance,
+            torch.ones_like(self.reset_goal_buf),
+            self.reset_goal_buf,
+        )
+        self.successes = self.successes + self.goal_resets
+        self.reset_goal_buf = self.goal_resets.clone()
+
+        # Consecutive-success running average over envs terminating this step.
+        resets = out_of_reach | time_out
+        num_resets = torch.sum(resets)
+        finished_cons_successes = torch.sum(self.successes * resets.float())
+        self.consecutive_successes[:] = torch.where(
+            num_resets > 0,
+            self.cfg.av_factor * finished_cons_successes / num_resets
+            + (1.0 - self.cfg.av_factor) * self.consecutive_successes,
+            self.consecutive_successes,
+        )
+
+        # Fixed ARD evaluation metric (mirrors cartpole's `fitness_function` key).
+        if "log" not in self.extras:
+            self.extras["log"] = dict()
+        self.extras["log"]["consecutive_successes"] = self.consecutive_successes.mean()
+        self.extras["log"]["fitness_function"] = self.consecutive_successes.mean()
+
+        # Sample fresh goals for envs that just reached their target.
+        goal_env_ids = self.reset_goal_buf.nonzero(as_tuple=False).squeeze(-1)
+        if len(goal_env_ids) > 0:
+            self._reset_target_pose(goal_env_ids)
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
         if env_ids is None:
@@ -373,61 +409,3 @@ def rotation_distance(object_rot, target_rot):
     # Orientation alignment for the cube in hand and goal cube
     quat_diff = quat_mul(object_rot, quat_conjugate(target_rot))
     return 2.0 * torch.asin(torch.clamp(torch.norm(quat_diff[:, 1:4], p=2, dim=-1), max=1.0))  # changed quat convention
-
-
-@torch.jit.script
-def compute_rewards(
-    reset_buf: torch.Tensor,
-    reset_goal_buf: torch.Tensor,
-    successes: torch.Tensor,
-    consecutive_successes: torch.Tensor,
-    max_episode_length: float,
-    object_pos: torch.Tensor,
-    object_rot: torch.Tensor,
-    target_pos: torch.Tensor,
-    target_rot: torch.Tensor,
-    dist_reward_scale: float,
-    rot_reward_scale: float,
-    rot_eps: float,
-    actions: torch.Tensor,
-    action_penalty_scale: float,
-    success_tolerance: float,
-    reach_goal_bonus: float,
-    fall_dist: float,
-    fall_penalty: float,
-    av_factor: float,
-):
-    goal_dist = torch.norm(object_pos - target_pos, p=2, dim=-1)
-    rot_dist = rotation_distance(object_rot, target_rot)
-
-    dist_rew = goal_dist * dist_reward_scale
-    rot_rew = 1.0 / (torch.abs(rot_dist) + rot_eps) * rot_reward_scale
-
-    action_penalty = torch.sum(actions**2, dim=-1)
-
-    # Total reward is: position distance + orientation alignment + action regularization + success bonus + fall penalty
-    reward = dist_rew + rot_rew + action_penalty * action_penalty_scale
-
-    # Find out which envs hit the goal and update successes count
-    goal_resets = torch.where(torch.abs(rot_dist) <= success_tolerance, torch.ones_like(reset_goal_buf), reset_goal_buf)
-    successes = successes + goal_resets
-
-    # Success bonus: orientation is within `success_tolerance` of goal orientation
-    reward = torch.where(goal_resets == 1, reward + reach_goal_bonus, reward)
-
-    # Fall penalty: distance to the goal is larger than a threshold
-    reward = torch.where(goal_dist >= fall_dist, reward + fall_penalty, reward)
-
-    # Check env termination conditions, including maximum success number
-    resets = torch.where(goal_dist >= fall_dist, torch.ones_like(reset_buf), reset_buf)
-
-    num_resets = torch.sum(resets)
-    finished_cons_successes = torch.sum(successes * resets.float())
-
-    cons_successes = torch.where(
-        num_resets > 0,
-        av_factor * finished_cons_successes / num_resets + (1.0 - av_factor) * consecutive_successes,
-        consecutive_successes,
-    )
-
-    return reward, goal_resets, successes, cons_successes
