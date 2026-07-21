@@ -323,6 +323,10 @@ cluster until you re-push.** Two ways to close the loop:
 - **The vision task needs `--enable_cameras`.** `hpc_submit.py` adds it automatically
   for `*-Vision-*` tasks; a hand-written job file must append `--enable_cameras` to
   its `command` itself.
+- **The vision task does not run on the HPC yet.** It runs perfectly locally and
+  under Docker, but on the CARES cluster the RTX renderer segfaults at Isaac Sim
+  startup (a worker GPU/driver issue). We may add HPC support in the future, but it
+  is not on our schedule right now — run the vision benchmark locally for now.
 - **`max_runtime_hours` is a hard kill**, so overestimate it. Cartpole at defaults is
   ~1.5 min; the Shadow benchmarks are hours.
 - **Job limits.** 50 active jobs per user. A postgraduate account runs 5 in the Normal
