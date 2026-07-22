@@ -3,11 +3,19 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Vision-based Shadow Hand cube-repose environment.
+
+Self-contained migration of the official ``Isaac-Repose-Cube-Shadow-Vision-Direct-v0``
+benchmark (IsaacLab 2.3.X): TiledCamera + CNN feature extractor. All env
+machinery is defined here so this single file is the complete environment and the
+ARD reward edit target: ``_get_rewards`` is the only method ARD rewrites (see
+``ard_meta.yaml``). Everything else — scene, observations, resets,
+success/fitness metrics — is unchanged from the official source.
+"""
 
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -16,18 +24,58 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs import DirectRLEnv
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from isaaclab.utils.math import quat_conjugate, quat_from_angle_axis, quat_mul, sample_uniform, saturate
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import TiledCamera, TiledCameraCfg
+from isaaclab.utils import configclass
+from isaaclab.utils.math import (
+    quat_apply,
+    quat_conjugate,
+    quat_from_angle_axis,
+    quat_mul,
+    sample_uniform,
+    saturate,
+)
 
-if TYPE_CHECKING:
-    from isaaclab_tasks.direct.allegro_hand.allegro_hand_env_cfg import AllegroHandEnvCfg
-    from isaaclab_tasks.direct.shadow_hand.shadow_hand_env_cfg import ShadowHandEnvCfg
+from ard_tasks.tasks.direct.shadow_hand.shadow_hand_env_cfg import ShadowHandEnvCfg
+
+from .feature_extractor import FeatureExtractor, FeatureExtractorCfg
 
 
-class InHandManipulationEnv(DirectRLEnv):
-    cfg: AllegroHandEnvCfg | ShadowHandEnvCfg
+@configclass
+class ShadowHandVisionEnvCfg(ShadowHandEnvCfg):
+    # scene
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1225, env_spacing=2.0, replicate_physics=True)
 
-    def __init__(self, cfg: AllegroHandEnvCfg | ShadowHandEnvCfg, render_mode: str | None = None, **kwargs):
+    # camera
+    tiled_camera: TiledCameraCfg = TiledCameraCfg(
+        prim_path="/World/envs/env_.*/Camera",
+        offset=TiledCameraCfg.OffsetCfg(pos=(0, -0.35, 1.0), rot=(0.7071, 0.0, 0.7071, 0.0), convention="world"),
+        data_types=["rgb", "depth", "semantic_segmentation"],
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
+        ),
+        width=120,
+        height=120,
+    )
+    feature_extractor = FeatureExtractorCfg()
+
+    # env
+    observation_space = 164 + 27  # state observation + vision CNN embedding
+    state_space = 187 + 27  # asymettric states + vision CNN embedding
+
+
+@configclass
+class ShadowHandVisionEnvPlayCfg(ShadowHandVisionEnvCfg):
+    # scene
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=64, env_spacing=2.0, replicate_physics=True)
+    # inference for CNN
+    feature_extractor = FeatureExtractorCfg(train=False, load_checkpoint=True)
+
+
+class ShadowHandVisionEnv(DirectRLEnv):
+    cfg: ShadowHandVisionEnvCfg
+
+    def __init__(self, cfg: ShadowHandVisionEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
 
         self.num_hand_dofs = self.hand.num_joints
@@ -77,17 +125,26 @@ class InHandManipulationEnv(DirectRLEnv):
         self.y_unit_tensor = torch.tensor([0, 1, 0], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
         self.z_unit_tensor = torch.tensor([0, 0, 1], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
 
+        # ---- vision-specific setup ----
+        # Use the log directory from the configuration
+        self.feature_extractor = FeatureExtractor(self.cfg.feature_extractor, self.device, self.cfg.log_dir)
+        # hide goal cubes
+        self.goal_pos[:, :] = torch.tensor([-0.2, 0.1, 0.6], device=self.device)
+        # keypoints buffer
+        self.gt_keypoints = torch.ones(self.num_envs, 8, 3, dtype=torch.float32, device=self.device)
+        self.goal_keypoints = torch.ones(self.num_envs, 8, 3, dtype=torch.float32, device=self.device)
+
     def _setup_scene(self):
         # add hand, in-hand object, and goal object
         self.hand = Articulation(self.cfg.robot_cfg)
         self.object = RigidObject(self.cfg.object_cfg)
-        # add ground plane
-        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
+        self._tiled_camera = TiledCamera(self.cfg.tiled_camera)
         # clone and replicate (no need to filter for this environment)
         self.scene.clone_environments(copy_from_source=False)
         # add articulation to scene - we must register to scene to randomize with EventManager
         self.scene.articulations["robot"] = self.hand
         self.scene.rigid_objects["object"] = self.object
+        self.scene.sensors["tiled_camera"] = self._tiled_camera
         # add lights
         light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
         light_cfg.func("/World/Light", light_cfg)
@@ -116,27 +173,6 @@ class InHandManipulationEnv(DirectRLEnv):
         self.hand.set_joint_position_target(
             self.cur_targets[:, self.actuated_dof_indices], joint_ids=self.actuated_dof_indices
         )
-
-    def _get_observations(self) -> dict:
-        if self.cfg.asymmetric_obs:
-            self.fingertip_force_sensors = self.hand.root_physx_view.get_link_incoming_joint_force()[
-                :, self.finger_bodies
-            ]
-
-        if self.cfg.obs_type == "openai":
-            obs = self.compute_reduced_observations()
-        elif self.cfg.obs_type == "full":
-            obs = self.compute_full_observations()
-        else:
-            print("Unknown observations type!")
-
-        if self.cfg.asymmetric_obs:
-            states = self.compute_full_state()
-
-        observations = {"policy": obs}
-        if self.cfg.asymmetric_obs:
-            observations = {"policy": obs, "critic": states}
-        return observations
 
     def _get_rewards(self) -> torch.Tensor:
         """Compute per-env scalar reward.
@@ -315,49 +351,6 @@ class InHandManipulationEnv(DirectRLEnv):
         self.object_linvel = self.object.data.root_lin_vel_w
         self.object_angvel = self.object.data.root_ang_vel_w
 
-    def compute_reduced_observations(self):
-        # Per https://arxiv.org/pdf/1808.00177.pdf Table 2
-        #   Fingertip positions
-        #   Object Position, but not orientation
-        #   Relative target orientation
-        obs = torch.cat(
-            (
-                self.fingertip_pos.view(self.num_envs, self.num_fingertips * 3),
-                self.object_pos,
-                quat_mul(self.object_rot, quat_conjugate(self.goal_rot)),
-                self.actions,
-            ),
-            dim=-1,
-        )
-
-        return obs
-
-    def compute_full_observations(self):
-        obs = torch.cat(
-            (
-                # hand
-                unscale(self.hand_dof_pos, self.hand_dof_lower_limits, self.hand_dof_upper_limits),
-                self.cfg.vel_obs_scale * self.hand_dof_vel,
-                # object
-                self.object_pos,
-                self.object_rot,
-                self.object_linvel,
-                self.cfg.vel_obs_scale * self.object_angvel,
-                # goal
-                self.in_hand_pos,
-                self.goal_rot,
-                quat_mul(self.object_rot, quat_conjugate(self.goal_rot)),
-                # fingertips
-                self.fingertip_pos.view(self.num_envs, self.num_fingertips * 3),
-                self.fingertip_rot.view(self.num_envs, self.num_fingertips * 4),
-                self.fingertip_velocities.view(self.num_envs, self.num_fingertips * 6),
-                # actions
-                self.actions,
-            ),
-            dim=-1,
-        )
-        return obs
-
     def compute_full_state(self):
         states = torch.cat(
             (
@@ -386,6 +379,81 @@ class InHandManipulationEnv(DirectRLEnv):
         )
         return states
 
+    def _compute_image_observations(self):
+        # generate ground truth keypoints for in-hand cube
+        compute_keypoints(pose=torch.cat((self.object_pos, self.object_rot), dim=1), out=self.gt_keypoints)
+
+        object_pose = torch.cat([self.object_pos, self.gt_keypoints.view(-1, 24)], dim=-1)
+
+        # train CNN to regress on keypoint positions
+        pose_loss, embeddings = self.feature_extractor.step(
+            self._tiled_camera.data.output["rgb"],
+            self._tiled_camera.data.output["depth"],
+            self._tiled_camera.data.output["semantic_segmentation"][..., :3],
+            object_pose,
+        )
+
+        self.embeddings = embeddings.clone().detach()
+        # compute keypoints for goal cube
+        compute_keypoints(
+            pose=torch.cat((torch.zeros_like(self.goal_pos), self.goal_rot), dim=-1), out=self.goal_keypoints
+        )
+
+        obs = torch.cat(
+            (
+                self.embeddings,
+                self.goal_keypoints.view(-1, 24),
+            ),
+            dim=-1,
+        )
+
+        # log pose loss from CNN training
+        if "log" not in self.extras:
+            self.extras["log"] = dict()
+        self.extras["log"]["pose_loss"] = pose_loss
+
+        return obs
+
+    def _compute_proprio_observations(self):
+        """Proprioception observations from physics."""
+        obs = torch.cat(
+            (
+                # hand
+                unscale(self.hand_dof_pos, self.hand_dof_lower_limits, self.hand_dof_upper_limits),
+                self.cfg.vel_obs_scale * self.hand_dof_vel,
+                # goal
+                self.in_hand_pos,
+                self.goal_rot,
+                # fingertips
+                self.fingertip_pos.view(self.num_envs, self.num_fingertips * 3),
+                self.fingertip_rot.view(self.num_envs, self.num_fingertips * 4),
+                self.fingertip_velocities.view(self.num_envs, self.num_fingertips * 6),
+                # actions
+                self.actions,
+            ),
+            dim=-1,
+        )
+        return obs
+
+    def _compute_states(self):
+        """Asymmetric states for the critic."""
+        sim_states = self.compute_full_state()
+        state = torch.cat((sim_states, self.embeddings), dim=-1)
+        return state
+
+    def _get_observations(self) -> dict:
+        # proprioception observations
+        state_obs = self._compute_proprio_observations()
+        # vision observations from CMM
+        image_obs = self._compute_image_observations()
+        obs = torch.cat((state_obs, image_obs), dim=-1)
+        # asymmetric critic states
+        self.fingertip_force_sensors = self.hand.root_physx_view.get_link_incoming_joint_force()[:, self.finger_bodies]
+        state = self._compute_states()
+
+        observations = {"policy": obs, "critic": state}
+        return observations
+
 
 @torch.jit.script
 def scale(x, lower, upper):
@@ -409,3 +477,34 @@ def rotation_distance(object_rot, target_rot):
     # Orientation alignment for the cube in hand and goal cube
     quat_diff = quat_mul(object_rot, quat_conjugate(target_rot))
     return 2.0 * torch.asin(torch.clamp(torch.norm(quat_diff[:, 1:4], p=2, dim=-1), max=1.0))  # changed quat convention
+
+
+@torch.jit.script
+def compute_keypoints(
+    pose: torch.Tensor,
+    num_keypoints: int = 8,
+    size: tuple[float, float, float] = (2 * 0.03, 2 * 0.03, 2 * 0.03),
+    out: torch.Tensor | None = None,
+):
+    """Computes positions of 8 corner keypoints of a cube.
+
+    Args:
+        pose: Position and orientation of the center of the cube. Shape is (N, 7)
+        num_keypoints: Number of keypoints to compute. Default = 8
+        size: Length of X, Y, Z dimensions of cube. Default = [0.06, 0.06, 0.06]
+        out: Buffer to store keypoints. If None, a new buffer will be created.
+    """
+    num_envs = pose.shape[0]
+    if out is None:
+        out = torch.ones(num_envs, num_keypoints, 3, dtype=torch.float32, device=pose.device)
+    else:
+        out[:] = 1.0
+    for i in range(num_keypoints):
+        # which dimensions to negate
+        n = [((i >> k) & 1) == 0 for k in range(3)]
+        corner_loc = ([(1 if n[k] else -1) * s / 2 for k, s in enumerate(size)],)
+        corner = torch.tensor(corner_loc, dtype=torch.float32, device=pose.device) * out[:, i, :]
+        # express corner position in the world frame
+        out[:, i, :] = pose[:, :3] + quat_apply(pose[:, 3:7], corner)
+
+    return out

@@ -1,0 +1,9 @@
+# ARD task metadata — used by ARD as --taskconfig directly.
+task: "Isaac-ARD-Repose-Cube-Shadow-Vision-Direct-v0"
+env_file: "source/ard_tasks/ard_tasks/tasks/direct/shadow_hand_vision/shadow_hand_vision_env.py"
+description: >
+  Use the Shadow Hand's fingers to rotate a cube held in the palm until its
+  orientation matches a target orientation, from vision observations (a
+  wrist-mounted camera feeding a CNN feature extractor) plus proprioception.
+  Reach the goal pose without dropping the cube, then keep reaching freshly
+  sampled target orientations, achieving as many consecutive successes as possible.
