@@ -30,6 +30,15 @@ parser.add_argument(
 parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
 parser.add_argument("--sigma", type=str, default=None, help="The policy's initial standard deviation.")
 parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
+parser.add_argument(
+    "--early-stop-patience",
+    type=int,
+    default=-1,
+    help=(
+        "Stop training if the fitness_function metric does not improve for this many evaluations "
+        "(training epochs). Default -1 disables early stopping; the run always goes to full duration."
+    ),
+)
 parser.add_argument("--wandb-project-name", type=str, default=None, help="the wandb's project name")
 parser.add_argument("--wandb-entity", type=str, default=None, help="the entity (team) of wandb's project")
 parser.add_argument("--wandb-name", type=str, default=None, help="the name of wandb's run")
@@ -94,6 +103,7 @@ from isaaclab_tasks.utils.hydra import hydra_task_config
 logger = logging.getLogger(__name__)
 
 import ard_tasks.tasks  # noqa: F401
+from ard_tasks.utils.rl_games_observers import EarlyStoppingAlgoObserver
 
 
 @hydra_task_config(args_cli.task, args_cli.agent)
@@ -216,6 +226,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     if "pbt" in agent_cfg and agent_cfg["pbt"]["enabled"]:
         observers = MultiObserver([IsaacAlgoObserver(), PbtAlgoObserver(agent_cfg, args_cli)])
         runner = Runner(observers)
+    elif args_cli.early_stop_patience > 0:
+        runner = Runner(EarlyStoppingAlgoObserver(args_cli.early_stop_patience))
     else:
         runner = Runner(IsaacAlgoObserver())
 

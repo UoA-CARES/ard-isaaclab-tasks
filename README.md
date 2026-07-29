@@ -72,6 +72,14 @@ python scripts/train.py --task Isaac-ARD-Repose-Cube-Shadow-Vision-Direct-v0 --h
 
 Standard flags pass through to the rl_games runner: `--num_envs`, `--seed`, `--headless`, `--video`, `--checkpoint`, `--max_iterations`.
 
+**Early stopping.** `--early-stop-patience N` stops a run once the `fitness_function` metric (see [Preparing a workspace for ARD](#preparing-a-workspace-for-ard)) hasn't improved for `N` training epochs -- useful in automated pipelines that evaluate many reward-function candidates, where a plateaued run is wasted compute. It defaults to `-1`, which disables early stopping so a run always goes to full duration:
+
+```bash
+python scripts/train.py --task Isaac-ARD-Cartpole-v0 --headless --early-stop-patience 20
+```
+
+When it triggers, the run logs the reason, the best `fitness_function` value and the epoch it occurred at, then stops exactly as it would on hitting `max_iterations` (same checkpointing).
+
 **Dummy-agent sanity checks:** the scaffolded `scripts/zero_agent.py` and `scripts/random_agent.py` (from the IsaacLab `--new` template) run each env with a zero or random policy. Handy for confirming an env constructs and steps without rl_games in the loop:
 
 ```bash
