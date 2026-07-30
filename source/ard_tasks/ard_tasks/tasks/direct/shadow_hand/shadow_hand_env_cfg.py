@@ -17,9 +17,9 @@ from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMater
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import GaussianNoiseCfg, NoiseModelWithAdditiveBiasCfg
+from isaaclab.sensors import CameraCfg
 
 from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG
-
 
 @configclass
 class EventCfg:
@@ -209,6 +209,9 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     scene: InteractiveSceneCfg = InteractiveSceneCfg(
         num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=True
     )
+
+    # Cameras
+    enable_cameras: bool = False
 
     # reset
     reset_position_noise = 0.01  # range of position at reset
