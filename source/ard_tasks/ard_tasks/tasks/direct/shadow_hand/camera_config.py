@@ -4,26 +4,18 @@ import isaaclab.utils.math as math_utils
 import isaaclab.sim as sim_utils
 from isaaclab.sensors import CameraCfg
 
-# Helper to convert deg to quat notation
-def deg_to_quat(roll: float, pitch: float, yaw: float) -> tuple[float, float, float, float]:
-    r = torch.tensor([roll * torch.pi / 180.0])
-    p = torch.tensor([pitch * torch.pi / 180.0])
-    y = torch.tensor([yaw * torch.pi / 180.0])
-    quat_tensor = math_utils.quat_from_euler_xyz(r, p, y)
-    
-    return tuple(quat_tensor[0].tolist())
+# Set this to opengl convention to match the camera orientation in Isaac Sim viewport. The default USD convention is Y-up, which is different from the OpenGL convention (Z-up).
+COORD_SYS = "opengl"
 
-#Change convention to world if the cameras dont work
-
-# Top view camera
+# Top view cameras
 TOP_VIEW_CAMERA = CameraCfg(
     prim_path="/World/envs/env_.*/topview_camera",
     width=640,
     height=480,
     offset = CameraCfg.OffsetCfg(
         pos = (0, -0.35, 1.5),
-        rot = deg_to_quat(0, 0, 0),
-        convention = "world"
+        rot = (1, 0, 0, 0),
+        convention = COORD_SYS
     ),
     data_types = ["rgb"],
     spawn = sim_utils.PinholeCameraCfg(
@@ -38,8 +30,8 @@ CAMERA_0 = CameraCfg(
     height=480,
     offset = CameraCfg.OffsetCfg(
         pos = (0.5, 0, 0.8),
-        rot = deg_to_quat(45, 45, 145),
-        convention = "world"
+        rot = (0.39634, 0.23087, 0.44351, 0.77001),
+        convention = COORD_SYS
     ),
     data_types = ["rgb"],
     spawn = sim_utils.PinholeCameraCfg(
@@ -54,8 +46,8 @@ CAMERA_1 = CameraCfg(
     height=480,
     offset = CameraCfg.OffsetCfg(
         pos = (-0.3, 0, 0.9),
-        rot = deg_to_quat(-35, -35, 140),
-        convention = "world"
+        rot = (0.39606, 0.17141, -0.36758, -0.8238),
+        convention = COORD_SYS
     ),
     data_types = ["rgb"],
     spawn = sim_utils.PinholeCameraCfg(
@@ -70,8 +62,8 @@ CAMERA_2 = CameraCfg(
     height=480,
     offset = CameraCfg.OffsetCfg(
         pos = (0, -1, 0.6),
-        rot = deg_to_quat(80, 0, 0),
-        convention = "world"
+        rot = (0.76604, 0.64279, 0, 0),
+        convention = COORD_SYS
     ),
     data_types = ["rgb"],
     spawn = sim_utils.PinholeCameraCfg(

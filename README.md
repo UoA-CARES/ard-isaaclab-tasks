@@ -69,6 +69,11 @@ python scripts/train.py --task Isaac-ARD-Cartpole-v0 --headless
 # Shadow-Hand vision benchmark: a camera task, so --enable_cameras is required:
 python scripts/train.py --task Isaac-ARD-Repose-Cube-Shadow-Vision-Direct-v0 --headless --enable_cameras
 ```
+Once training is done, evaluation can be observed using the `--video` flag. This spawns multiple cameras surrounding the task and saves the video to log
+```bash
+# Record video during evaluation
+python scripts/play.py --task Isaac-ARD-Repose-Cube-Shadow-Direct-v0 --headless --video --num_envs 1
+```
 
 Standard flags pass through to the rl_games runner: `--num_envs`, `--seed`, `--headless`, `--video`, `--checkpoint`, `--max_iterations`.
 
