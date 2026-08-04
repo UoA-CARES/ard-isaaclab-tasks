@@ -27,6 +27,8 @@ from isaaclab.envs import DirectRLEnv
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import quat_conjugate, quat_from_angle_axis, quat_mul, sample_uniform, saturate
+from isaaclab.sensors import Camera
+from .camera_config import CAMERA_0, CAMERA_1, CAMERA_2, TOP_VIEW_CAMERA
 
 if TYPE_CHECKING:
     from .shadow_hand_env_cfg import ShadowHandEnvCfg
@@ -91,6 +93,18 @@ class ShadowHandEnv(DirectRLEnv):
         self.object = RigidObject(self.cfg.object_cfg)
         # add ground plane
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
+        # add cameras if enabled
+        if self.cfg.enable_cameras:
+            self.cameras = {
+                "top_view": Camera(TOP_VIEW_CAMERA),
+                "camera_0": Camera(CAMERA_0),
+                "camera_1": Camera(CAMERA_1),
+                "camera_2": Camera(CAMERA_2),
+            }
+            # Register with interactive scene so sensors update
+            for cam in self.cameras.values():
+                self.scene.sensors[cam.cfg.prim_path] = cam
+        
         # clone and replicate (no need to filter for this environment)
         self.scene.clone_environments(copy_from_source=False)
         # add articulation to scene - we must register to scene to randomize with EventManager
@@ -393,6 +407,23 @@ class ShadowHandEnv(DirectRLEnv):
             dim=-1,
         )
         return states
+
+    def render(self):
+        """
+        Render env and collect frames from cameras if enabled. If not, fall back to old render method.
+        """
+
+        # if cameras are not enabled, go back to default render
+        if not self.cfg.enable_cameras:
+            return super().render()
+
+        # extract frames from cameras into a dict
+        frames = {}
+        for cam_name, cam in self.cameras.items():
+            rgb_tensor = cam.data.output["rgb"][0]
+            frames[cam_name] = rgb_tensor.cpu().numpy().astype(np.uint8)
+
+        return frames
 
 
 @torch.jit.script
