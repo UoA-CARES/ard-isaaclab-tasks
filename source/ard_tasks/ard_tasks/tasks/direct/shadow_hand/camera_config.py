@@ -29,8 +29,8 @@ CAMERA_0 = CameraCfg(
     width=640,
     height=480,
     offset = CameraCfg.OffsetCfg(
-        pos = (0.5, 0, 0.8),
-        rot = (0.39634, 0.23087, 0.44351, 0.77001),
+        pos = (0.6, 0.135, 0.94),
+        rot = (0.40607, 0.24949, 0.45663, 0.75123),
         convention = COORD_SYS
     ),
     data_types = ["rgb"],
@@ -46,7 +46,7 @@ CAMERA_1 = CameraCfg(
     height=480,
     offset = CameraCfg.OffsetCfg(
         pos = (-0.3, 0, 0.9),
-        rot = (0.39606, 0.17141, -0.36758, -0.8238),
+        rot = (-0.22883, -0.11546, 0.45061, 0.85514),
         convention = COORD_SYS
     ),
     data_types = ["rgb"],
@@ -55,14 +55,14 @@ CAMERA_1 = CameraCfg(
     )
 )
 
-# Isometric view camera 2
+# Front view camera
 CAMERA_2 = CameraCfg(
-    prim_path = "/World/envs/env_.*/camera_2",
+    prim_path = "/World/envs/env_.*/frontview_camera",
     width=640,
     height=480,
     offset = CameraCfg.OffsetCfg(
-        pos = (0, -1, 0.6),
-        rot = (0.76604, 0.64279, 0, 0),
+        pos = (-0.1, -1, 0.65),
+        rot = (0.73313, 0.68008, -0.00243, -0.00226),
         convention = COORD_SYS
     ),
     data_types = ["rgb"],
