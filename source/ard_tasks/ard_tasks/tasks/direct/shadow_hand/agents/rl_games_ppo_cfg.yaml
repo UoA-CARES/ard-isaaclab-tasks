@@ -85,6 +85,42 @@ params:
     seq_length: 4
     bounds_loss_coef: 0.0001
 
+    # Neuron-level plasticity diagnostics (rl_games NetworkPlasticityManager).
+    # Interval units are summary() calls, i.e. epochs.
+    plasticity:
+      enabled: false
+      replacement_enabled: false          # CBP neuron replacement - not implemented yet
+      replacement_strategy: cbp
+
+      # Replacement schedule (accepted, inert until replacement lands)
+      replacement_rate: 1.0e-5
+      maturity_threshold: 1000
+      activation_window_size: 10000
+
+      # Diagnostics schedule
+      log_interval: 1                    # epochs between logged summaries
+      rank_interval: 1                   # epochs between rank computations
+      knife_interval: 10                   # multiples of log_interval between KNIFE diagnostics
+
+      utility_decay: 0.99
+
+      stagnant_threshold: 0.25
+      volatile_threshold: 3.0
+      rua_eps: 1.0e-12
+
+      activity_threshold: 1.0e-5
+      dormant_threshold: 0.01
+
+      # Rows kept from a single [num_envs, hidden] rollout forward pass
+      rollout_samples_per_forward: 256
+
+      replacement_accumulate: false
+      compute_rank: true
+      training_only: true
+
+      init: kaiming
+      activation_name: elu                # must match network.mlp.activation
+
     player:
       deterministic: True
       games_num: 100000
