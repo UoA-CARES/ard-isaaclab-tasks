@@ -81,6 +81,84 @@ RUN cp -a /workspace/isaaclab /opt/isaaclab \
 # image exports it as /workspace/isaaclab, which may not exist at run time.
 ENV ISAACLAB_PATH=/opt/isaaclab
 
+# Custom rl_games (UoA-CARES fork) in place of the base image's stock copy.
+#
+# The base image installs rl_games 1.6.1 as a normal site-packages distribution
+# via isaaclab_rl's extras. Installing our fork under the same distribution name
+# makes pip *uninstall* that copy first, so `import rl_games` resolves here and
+# only here. Nothing in this build checks that, so if you are debugging a run
+# that behaves like stock rl_games, confirm the resolution by hand:
+#   docker run --rm --entrypoint sh <image> -c \
+#       '/isaac-sim/python.sh -c "import rl_games; print(rl_games.__file__)"'
+# It should print /opt/rl_games/rl_games/__init__.py, not a site-packages path.
+#
+# --no-deps keeps this consistent with the layers above: the fork's additions
+# (algos_torch/plasticity.py, plasticity_adam.py) import nothing beyond torch
+# and the stdlib, so every runtime dep is already covered by the stock install
+# we are replacing. Drop it only if the fork gains a new third-party dependency.
+#
+# The `rm pyproject.toml` is load-bearing, not tidying. The fork carries *two*
+# build configs -- a setuptools setup.py and a Poetry pyproject.toml -- and pip
+# obeys the latter's [build-system]. That breaks this build twice over:
+#   1. poetry-core is not installed in the Isaac Sim interpreter, so
+#      --no-build-isolation dies with `ModuleNotFoundError: No module named
+#      'poetry'`;
+#   2. and with isolation left on, Poetry's `python = ">=3.7.1,<3.11"` becomes
+#      Requires-Python, so pip refuses outright: `Package 'rl-games' requires a
+#      different Python: 3.11.13 not in '<3.11,>=3.7.1'`. This image is 3.11.
+# Deleting it drops pip onto the setup.py/setuptools path, which declares no
+# python_requires -- and which is how rl-games is packaged on PyPI anyway, so
+# nothing about the resulting install is unusual. The durable fix is to widen
+# (or drop) that constraint in the fork; until then this line stays.
+#
+# RL_GAMES_REF defaults to the feature branch, so a plain rebuild tracks its tip
+# (see the ADD below for what makes that true). Pass a full commit SHA instead --
+# --build-arg RL_GAMES_REF=<sha> -- to pin a build you want to reproduce exactly.
+# Either way the resolved SHA is recorded at /opt/rl_games/.build-sha, and both
+# entrypoints echo it at startup, so every run's log names the commit it trained
+# against. That log line is the only way back to an old run's exact fork state.
+ARG RL_GAMES_REPO=https://github.com/UoA-CARES/rl_games.git
+ARG RL_GAMES_REF=master
+
+# Make the fetch below cache-correct. Docker keys a RUN layer on its command
+# *text*, not on anything at the far end of the network, so `git fetch <branch>`
+# is a constant string whose layer is reused forever: push to the fork and every
+# machine with a warm cache keeps building the commit it first saw, silently, and
+# under PCS that is per job. ADD-from-URL keys its layer on the fetched *content*
+# instead, so when the branch head moves this 600-byte ref advertisement changes,
+# this layer's digest changes, and everything below it is invalidated. No build
+# flags involved -- which matters, because PCS just runs a plain `docker build`.
+#
+# This is git's own transport endpoint (it is what `git clone` requests first),
+# deliberately not api.github.com: the API allows 60 unauthenticated requests per
+# hour per IP, and a seed sweep building per job on a shared worker would exhaust
+# that and fail the build outright on the 403.
+#
+# The advertisement lists *all* refs, so a push to any branch of the fork busts
+# this, as can a change to GitHub's server `agent=` string. Both just re-run the
+# fetch and the two small installs below (~12s total); the expensive /opt/isaaclab
+# layer sits above this line and is untouched. Over-invalidation is near-free here
+# by construction. Note this needs an anonymously readable HTTP remote -- point
+# RL_GAMES_REPO at SSH or a private repo and ADD cannot authenticate.
+ADD ${RL_GAMES_REPO}/info/refs?service=git-upload-pack /opt/rl_games.refs
+
+# git ships in the base image, so no apt-get is needed to reach the fork.
+#
+# init+fetch rather than `git clone --branch`, because --branch takes branch and
+# tag names only: `clone --branch <sha>` dies with "Remote branch <sha> not found
+# in upstream origin", which would make the SHA pin documented above impossible.
+# `fetch --depth 1 origin <ref>` accepts a branch name or a full SHA alike (GitHub
+# serves arbitrary full SHAs), so one code path covers both.
+RUN git init -q /opt/rl_games \
+ && git -C /opt/rl_games remote add origin "${RL_GAMES_REPO}" \
+ && git -C /opt/rl_games fetch -q --depth 1 origin "${RL_GAMES_REF}" \
+ && git -C /opt/rl_games checkout -q FETCH_HEAD \
+ && git -C /opt/rl_games rev-parse HEAD > /opt/rl_games/.build-sha \
+ && rm -f /opt/rl_games/pyproject.toml \
+ && /isaac-sim/python.sh -m pip install --no-cache-dir --no-build-isolation \
+        --no-deps -e /opt/rl_games \
+ && chmod -R o+rX /opt/rl_games
+
 # Pre-install the ARD tasks against IsaacLab's interpreter. toml/setuptools are
 # already present in that interpreter, so --no-build-isolation keeps the build
 # fast and offline. psutil (the only extra dep) is already present too.

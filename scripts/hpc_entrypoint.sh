@@ -99,5 +99,9 @@ fi
 
 echo "[hpc] user=$(id -u):$(id -g)  cwd=$(pwd)"
 echo "[hpc] task=${task_label}  artifacts -> ${OUTPUT_DIR}/logs (preserved to the NAS)"
+# Which rl_games commit is baked in. The scheduler pulls a prebuilt image, so a
+# tag that looks current can still carry an old fork; this line is what makes
+# that visible in the job log rather than passing as an ordinary run.
+echo "[hpc] rl_games=$(cat /opt/rl_games/.build-sha 2>/dev/null || echo unknown)"
 echo "[hpc] exec: ${PYTHON} train.py ${args[*]}"
 exec "$PYTHON" "$TRAIN" "${args[@]}"

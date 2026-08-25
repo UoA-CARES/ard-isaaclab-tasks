@@ -5,6 +5,12 @@
 #   scripts/hpc_push.sh                       # build + push the default tag
 #   IMAGE=130.216.238.2:5500/cli797_ard-isaaclab:dev scripts/hpc_push.sh
 #   scripts/hpc_push.sh --no-build            # push an already-built image
+#   RL_GAMES_REF=<sha> scripts/hpc_push.sh    # pin the rl_games fork commit
+#
+# Unset, RL_GAMES_REF leaves the Dockerfile default in force: the fork's feature
+# branch, whose tip a rebuild picks up automatically. Set it to a full commit SHA
+# to reproduce an earlier run -- take the SHA from that run's `[hpc] rl_games=`
+# log line. Either way this script prints what actually landed in the image.
 #
 # The scheduler pulls the image, so a reward edit only reaches the cluster after
 # this script has run. The rebuild is incremental: only the `ard_tasks` source
@@ -43,8 +49,15 @@ fi
 
 if [ "$BUILD" -eq 1 ]; then
   echo "[hpc] building $IMAGE"
-  docker build -t "$IMAGE" .
+  build_args=()
+  [ -n "${RL_GAMES_REF:-}" ] && build_args+=(--build-arg "RL_GAMES_REF=$RL_GAMES_REF")
+  docker build "${build_args[@]+"${build_args[@]}"}" -t "$IMAGE" .
 fi
+
+# State the fork commit before the push, so the tag you are about to publish is
+# never ambiguous. Works on the --no-build path too, which is the one where a
+# stale image is easiest to push by accident.
+echo "[hpc] rl_games: $(docker run --rm --entrypoint cat "$IMAGE" /opt/rl_games/.build-sha)"
 
 echo "[hpc] pushing $IMAGE"
 docker push "$IMAGE"

@@ -47,5 +47,9 @@ fi
 
 echo "[pcs] user=$(id -u):$(id -g)  HOME=${HOME:-?}  cwd=$(pwd)"
 echo "[pcs] task=${TASK}  artifacts -> $(pwd)/logs (declare 'logs' in output_paths)"
+# Which rl_games commit is baked in. PCS rebuilds the image per job, so this is
+# the record of what the job actually trained against -- and the only way back to
+# an exact fork state later, since the default RL_GAMES_REF tracks a branch tip.
+echo "[pcs] rl_games=$(cat /opt/rl_games/.build-sha 2>/dev/null || echo unknown)"
 echo "[pcs] exec: isaaclab.sh -p train.py ${args[*]}"
 exec "$ISAACLAB" -p "$TRAIN" "${args[@]}"
