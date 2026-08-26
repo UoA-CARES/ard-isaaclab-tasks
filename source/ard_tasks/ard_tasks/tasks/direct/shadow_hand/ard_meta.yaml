@@ -6,3 +6,12 @@ description: >
   orientation matches a target orientation, from state observations. Reach the
   goal pose without dropping the cube, then keep reaching freshly sampled target
   orientations, achieving as many consecutive successes as possible.
+task_specific_instruction: >
+  **Verifying success**: The target orientation is shown by a floating reference cube in the scene. 
+  This target only updates to a new orientation once the in-hand cube exactly matches it. If the cube never changes throughout the video,
+  the agent has not achieved a single success in that clip - even if the in-hand cube looks close. Use whether and how often the target 
+  updates as your primary evidence for success, not visual proximity between the two cubes.
+
+  **Things to watch for**: 
+  Partial loss of contact, the cube lifting, shifting, or slipping unexpectedly against the palm, jitter - 
+  even when the cube never comes close to fully falling. 
