@@ -52,6 +52,9 @@ parser.add_argument(
 )
 parser.add_argument("--export_io_descriptors", action="store_true", default=False, help="Export IO descriptors.")
 parser.add_argument(
+    "--plasticity", action="store_true", default=False, help="Enable plasticity monitoring/unit-replacement."
+)
+parser.add_argument(
     "--ray-proc-id", "-rid", type=int, default=None, help="Automatically configured by Ray integration, otherwise None."
 )
 # append AppLauncher cli args
@@ -133,6 +136,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         agent_cfg["params"]["load_path"] = resume_path
         print(f"[INFO]: Loading model checkpoint from: {agent_cfg['params']['load_path']}")
     train_sigma = float(args_cli.sigma) if args_cli.sigma is not None else None
+
+    # enable plasticity monitoring from the CLI, keeping any tuned block from the agent config
+    if args_cli.plasticity:
+        agent_cfg["params"]["config"].setdefault("plasticity", {})["enabled"] = True
 
     # multi-gpu training config
     if args_cli.distributed:
