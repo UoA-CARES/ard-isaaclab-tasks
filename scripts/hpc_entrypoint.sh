@@ -121,9 +121,10 @@ else
   if [ "$mode_label" = "train" ]; then
     [ -n "${MAX_ITERATIONS:-}" ] && args+=(--max_iterations "$MAX_ITERATIONS")
   else
-    # Play-specific env var fallbacks
+  # Play-specific env var fallbacks
     [ -n "${CHECKPOINT:-}" ] && args+=(--checkpoint "$CHECKPOINT")
-    [ "${ENABLE_VIDEO:-false}" = "true" ] || [ "${VIDEO:-false}" = "true" ] && args+=(--video)
+    [ "${VIDEO:-false}" = "true" ] && args+=(--video)
+    [ -n "${VIDEO_LENGTH:-}" ] && args+=(--video_length "$VIDEO_LENGTH")
   fi
 
   # EXTRA_ARGS is deliberately word-split so callers can pass multiple flags.
