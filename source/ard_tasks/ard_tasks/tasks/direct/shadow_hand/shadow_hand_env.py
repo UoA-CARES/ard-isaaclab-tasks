@@ -28,7 +28,7 @@ from isaaclab.markers import VisualizationMarkers
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import quat_conjugate, quat_from_angle_axis, quat_mul, sample_uniform, saturate
 from isaaclab.sensors import Camera
-from .camera_config import CAMERA_0, CAMERA_1, CAMERA_2, TOP_VIEW_CAMERA
+from .camera_config import CAMERA_0, CAMERA_1, CAMERA_2, CAMERA_3
 
 if TYPE_CHECKING:
     from .shadow_hand_env_cfg import ShadowHandEnvCfg
@@ -96,10 +96,10 @@ class ShadowHandEnv(DirectRLEnv):
         # add cameras if enabled
         if self.cfg.enable_cameras:
             self.cameras = {
-                "top_view": Camera(TOP_VIEW_CAMERA),
                 "camera_0": Camera(CAMERA_0),
                 "camera_1": Camera(CAMERA_1),
                 "camera_2": Camera(CAMERA_2),
+                "camera_3": Camera(CAMERA_3),
             }
             # Register with interactive scene so sensors update
             for cam in self.cameras.values():
