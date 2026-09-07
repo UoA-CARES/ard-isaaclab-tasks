@@ -9,7 +9,7 @@ Shadow Hand cube-repose environment (state observations).
 Migration of the official ``Isaac-Repose-Cube-Shadow-Direct-v0`` benchmark
 (IsaacLab 2.3.X, ``isaaclab_tasks.direct.shadow_hand``). The cfg, agent
 hyperparameters and env machinery are copied unchanged; the reward now lives in
-``shadow_hand_env.py`` (``ShadowHandEnv._get_rewards``) as the ARD edit target,
+``shadow_hand_env.py`` (``ShadowHandEnv.compute_reward``) as the ARD edit target,
 and the gym ID is prefixed with ``Isaac-ARD-`` to avoid clashing with the
 ``isaaclab_tasks`` registration that ``train.py`` also imports.
 """
