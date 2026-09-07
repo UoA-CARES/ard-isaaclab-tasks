@@ -167,10 +167,10 @@ def compute_reward(self) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
   exactly as in Eureka: the per-env total reward of shape `(num_envs,)`, and a dict
   naming each individual reward component (also `(num_envs,)` each).
 - `log_reward_components` (`ard_tasks.utils.reward_logging`) reduces each component
-  to its mean over envs and writes it to `self.extras["log"]` as `rew_<name>`, plus
-  the aggregate as `rew_total`. IsaacLab's rl_games wrapper renames `log` ->
+  to its mean over envs and writes it to `self.extras["log"]` as `components_<name>`, plus
+  the aggregate as `components_total`. IsaacLab's rl_games wrapper renames `log` ->
   `episode`, and rl_games' `IsaacAlgoObserver` writes each key to TensorBoard as
-  `Episode/rew_<name>`. That is how the LLM gets to see, iteration after iteration,
+  `Episode/components_<name>`. That is how the LLM gets to see, iteration after iteration,
   what each component it wrote is actually doing during training.
 - The fixed evaluation metric `fitness_function` is logged from `_get_dones`,
   outside both methods, so an ARD edit can never alter the score it is judged on.

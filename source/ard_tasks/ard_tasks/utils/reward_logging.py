@@ -37,7 +37,7 @@ Three properties of that pipeline shape the code below.
    others raises ``KeyError`` mid-training. LLM-written code is exactly where that
    happens, so the key set is pinned on first use and reconciled on every later step.
 3. Everything shares one flat ``Episode/`` namespace with the fixed evaluation metric,
-   so component names are prefixed (``rew_``) and can never collide with it.
+   so component names are prefixed (``components_``) and can never collide with it.
 """
 
 from __future__ import annotations
@@ -45,9 +45,9 @@ from __future__ import annotations
 import torch
 
 # Prefix for every scalar this module logs. Keeps ARD-designed components in their own
-# TensorBoard namespace (``Episode/rew_*``), and guarantees a component can never be
+# TensorBoard namespace (``Episode/components_*``), and guarantees a component can never be
 # named ``fitness_function`` and shadow the metric the reward is scored on.
-COMPONENT_PREFIX = "rew_"
+COMPONENT_PREFIX = "components_"
 
 # The aggregate, logged alongside the components (Eureka logs this as ``gpt_reward``).
 # The LLM needs it to judge whether a component's magnitude is large or small relative

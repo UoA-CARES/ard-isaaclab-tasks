@@ -195,7 +195,7 @@ class ShadowHandVisionEnv(DirectRLEnv):
         1. ``total_reward``: the per-env reward the policy optimises, shape (num_envs,).
         2. ``reward_components``: a dict naming each individual term that went into
            the total, each also shape (num_envs,). The framework logs the mean of
-           each one as ``Episode/rew_<name>``, so every component stays observable
+           each one as ``Episode/components_<name>``, so every component stays observable
            across training and can be rescaled or discarded next iteration. Use the
            same key set on every step.
 
