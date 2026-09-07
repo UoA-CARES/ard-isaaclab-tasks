@@ -21,6 +21,8 @@ from isaaclab.utils.math import sample_uniform
 
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
+from ard_tasks.utils.reward_logging import log_reward_components, reset_episode_log
+
 
 @configclass
 class CartpoleEnvCfg(DirectRLEnvCfg):
@@ -105,36 +107,50 @@ class CartpoleEnv(DirectRLEnv):
         return observations
 
     def _get_rewards(self) -> torch.Tensor:
-        """Compute per-env scalar reward.
+        """Framework hook. NOT an ARD edit target — `compute_reward` below is.
 
-        All reward shaping, dense/sparse signals, and termination bonuses
-        must be computed inside this method. Return shape: (num_envs,).
-        This method is the sole edit target for the ARD framework.
+        Calls the reward workspace, publishes every component it returned to
+        TensorBoard (via `extras["log"]`), and hands the total back to the RL
+        algorithm.
         """
-        pole_pos = self.joint_pos[:, self._pole_dof_idx[0]]
-        pole_vel = self.joint_vel[:, self._pole_dof_idx[0]]
-        cart_vel = self.joint_vel[:, self._cart_dof_idx[0]]
-
-        rew_alive = self.cfg.rew_scale_alive * (1.0 - self.reset_terminated.float())
-        rew_termination = self.cfg.rew_scale_terminated * self.reset_terminated.float()
-        rew_pole_pos = self.cfg.rew_scale_pole_pos * torch.sum(torch.square(pole_pos).unsqueeze(dim=1), dim=-1)
-        rew_cart_vel = self.cfg.rew_scale_cart_vel * torch.sum(torch.abs(cart_vel).unsqueeze(dim=1), dim=-1)
-        rew_pole_vel = self.cfg.rew_scale_pole_vel * torch.sum(torch.abs(pole_vel).unsqueeze(dim=1), dim=-1)
-        total_reward = rew_alive + rew_termination + rew_pole_pos + rew_cart_vel + rew_pole_vel
-
+        total_reward, reward_components = self.compute_reward()
+        log_reward_components(self, total_reward, reward_components)
         return total_reward
+
+    def compute_reward(self) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+        """<<< ARD EDIT TARGET >>> — the reward workspace.
+
+        All reward shaping, dense/sparse signals, and termination bonuses are
+        computed here, from `self.*` environment state only. Returns two things:
+
+        1. `total_reward`: the per-env reward the policy optimises, shape (num_envs,).
+        2. `reward_components`: a dict naming each individual term that went into
+           the total, each also shape (num_envs,). The framework logs the mean of
+           each one as `Episode/components_<name>`, so every component stays observable
+           across training and can be rescaled or discarded next iteration. Use the
+           same key set on every step.
+
+        The fixed evaluation metric (`fitness_function`) is logged from
+        `_get_dones`, outside this method, and must not be touched here.
+        """
+        total_reward = torch.zeros(self.num_envs, device=self.device)
+        reward_components: dict[str, torch.Tensor] = {}
+
+        return total_reward, reward_components
 
     def _log_fitness(self) -> None:
         """Log the fixed ARD evaluation metric (fitness_function).
 
-        Computed from environment state only and kept OUT of `_get_rewards`, so
+        Computed from environment state only and kept OUT of `compute_reward`, so
         the ARD framework can rewrite the reward without ever touching the metric
         it is scored on. Fitness here is the episode length (steps before the
         pole falls).
+
+        Also starts this step's `extras["log"]` dict, which `_get_rewards` then
+        adds the reward components to — `_get_dones` runs first each step.
         """
-        if "log" not in self.extras:
-            self.extras["log"] = dict()
-        self.extras["log"]["fitness_function"] = self.episode_length_buf.float().mean()
+        log = reset_episode_log(self)
+        log["fitness_function"] = self.episode_length_buf.float().mean()
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         self.joint_pos = self.cartpole.data.joint_pos

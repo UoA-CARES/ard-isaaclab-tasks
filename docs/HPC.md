@@ -133,7 +133,7 @@ sudo mount -t cifs //130.216.238.2/outputs ~/hpc_outputs -o username=<upi>
 
 ## ARD reward iteration on the HPC
 
-The scheduler pulls the image, so **an edited `_get_rewards` does not reach the cluster until you re-push.** Two ways to close the loop:
+The scheduler pulls the image, so **an edited `compute_reward` does not reach the cluster until you re-push.** Two ways to close the loop:
 
 1. **Re-push (recommended).** `scripts/hpc_push.sh` after each edit. The IsaacLab layers are cached, so only the `ard_tasks` source and its editable-install layer change: about **1 MB per iteration**, not the 17 GB base.
 2. **Ship the source as a dataset.** Upload the edited `ard_tasks` package tree to the NAS as a dataset, request it with `--dataset <name>`, and point `ARD_SRC` at its mount (`/workspace/datasets/<name>`). The entrypoint puts it at the front of `PYTHONPATH`, so it takes import precedence over the baked copy. No rebuild, no push. (The HPC docs prefer code to live in the image, so treat this as the fast-iteration escape hatch rather than the default.) **Caveat:** `ARD_SRC` is an env var, and the scheduler does not forward the job `env` block into the container, so `--env ARD_SRC=...` will not take effect there. This hatch works only under a local `docker run -e ARD_SRC=...`. Re-push is the reliable path on the cluster.
