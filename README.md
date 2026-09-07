@@ -12,7 +12,7 @@ This is an **external IsaacLab project** (generated via `isaaclab.sh --new`): th
 
 ### Current task support
 
-Every task here is copied from the official IsaacLab 2.3.2 source and registered under an `Isaac-ARD-*` ID. In each task, all reward logic lives in a single `_get_rewards` method, the one method ARD is allowed to rewrite. See [Preparing a workspace for ARD](#preparing-a-workspace-for-ard) for how that edit contract works.
+Every task here is copied from the official IsaacLab 2.3.2 source and registered under an `Isaac-ARD-*` ID. In each task, all reward logic lives in a single `compute_reward` method, the one method ARD is allowed to rewrite; it returns the total reward *and* a dict of its named components, so every component stays visible in TensorBoard. See [Preparing a workspace for ARD](#preparing-a-workspace-for-ard) for how that edit contract works.
 
 | Task ID | Description |
 | --- | --- |
@@ -135,21 +135,31 @@ A few gotchas worth knowing before you submit (full detail in [`docs/HPC.md`](do
 
 ### Preparing a workspace for ARD
 
-**The `_get_rewards` contract.** Every task's environment class exposes its reward computation in a single method with a fixed signature, so ARD's AST-level code generator can rewrite it unambiguously:
+**The `compute_reward` contract.** Every task's environment class splits its reward in two, so ARD's AST-level code generator can rewrite it unambiguously:
 
 ```python
-# Cartpole (single-agent)
 def _get_rewards(self) -> torch.Tensor:
-    """Compute per-env scalar reward.
+    """Framework hook. NOT an ARD edit target — `compute_reward` below is."""
+    total_reward, reward_components = self.compute_reward()
+    log_reward_components(self, total_reward, reward_components)
+    return total_reward
 
-    All reward shaping, dense/sparse signals, and termination bonuses
-    must be computed inside this method. Return shape: (num_envs,).
-    This method is the sole edit target for the ARD framework.
-    """
+def compute_reward(self) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    """<<< ARD EDIT TARGET >>> — the reward workspace."""
     ...
+    return total_reward, {"name": component_tensor, ...}
 ```
 
-No reward logic lives outside `_get_rewards` in any task, including the Shadow Hand benchmarks. Hyperparameters, observation spaces, action spaces, and termination conditions stay unchanged from the official IsaacLab 2.3.2 source. `_get_rewards` is the *only* thing ARD edits. Success tracking and the `fitness_function` evaluation metric live outside `_get_rewards`, so an ARD edit can never touch the score it's judged on.
+`compute_reward` is the *only* thing ARD edits, and it returns **two** things, exactly as in Eureka:
+
+1. `total_reward` — the per-env reward the policy optimises, shape `(num_envs,)`.
+2. `reward_components` — a dict naming each individual term that went into the total, each also `(num_envs,)`.
+
+`log_reward_components` (`ard_tasks.utils.reward_logging`) reduces each component to its mean over envs and writes it to `self.extras["log"]` as `rew_<name>`, plus the aggregate as `rew_total`. IsaacLab's rl_games wrapper renames `log` → `episode`, and rl_games' `IsaacAlgoObserver` writes each key to TensorBoard as `Episode/rew_<name>`. **That is how the reward stays observable:** ARD reads those scalars back out of the training logs and shows the LLM what every component it wrote actually did, so the next iteration can rescale or discard it. A reward that returns no components is a reward nobody can debug.
+
+The component dict must use the **same key set on every step** — rl_games' observer takes its key list from the epoch's first reading and indexes every later one with it. `log_reward_components` reconciles the keys defensively (missing → `0.0`, unexpected → dropped) so an LLM-written conditional cannot kill a run mid-training, but the generated code should not rely on that.
+
+No reward logic lives outside `compute_reward` in any task, including the Shadow Hand benchmarks. Hyperparameters, observation spaces, action spaces, and termination conditions stay unchanged from the official IsaacLab 2.3.2 source. Success tracking and the `fitness_function` evaluation metric live in `_get_dones`, so an ARD edit can never touch the score it's judged on.
 
 **`ard_meta.yaml`.** Each task directory carries an `ard_meta.yaml`: the task id, the path to its env file, and a natural-language task description, meant to be handed to the external ARD framework directly as its `--taskconfig`:
 
@@ -161,16 +171,9 @@ description: >
   Balance a pole upright on a cart by applying horizontal forces to the cart. ...
 ```
 
-**Starting from a clean slate.** ARD is meant to regenerate each task's reward from scratch, not edit an existing one. So before a run, purge the reference implementations onto a dedicated `workspace` branch:
+**Starting from a clean slate.** ARD regenerates each task's reward from scratch rather than editing an existing one, so every `compute_reward` in this repo ships **blank** — it returns a zero reward and an empty component dict. No reference reward leaks into the LLM's prompt, and no branch juggling is needed to keep it that way.
 
-```bash
-scripts/ard_workspace.sh                  # branch off the current HEAD
-scripts/ard_workspace.sh --base main       # branch off a specific ref
-scripts/ard_workspace.sh --force           # recreate an existing `workspace` branch
-scripts/ard_workspace.sh --dry-run         # preview the git/purge commands only
-```
-
-This creates (or recreates) a `workspace` branch and blanks every `_get_rewards` body on it down to `return torch.zeros(self.num_envs, device=self.device)`, so no reference reward leaks into the LLM's prompt. It refuses to run on a dirty working tree.
+The official IsaacLab reward for each task is archived in [`docs/REFERENCE_REWARDS.md`](docs/REFERENCE_REWARDS.md), already rewritten to the two-output `compute_reward` contract. Paste one back into a task env when you want a hand-written baseline to compare an ARD-designed reward against.
 
 ## Repository layout
 
@@ -179,18 +182,20 @@ The layout mirrors what `<isaaclab>/isaaclab.sh --new` produces for an external 
 ```
 ard-isaaclab-tasks/
 ├── source/ard_tasks/              # editable extension (`pip install -e`)
-│   └── ard_tasks/tasks/direct/
-│       ├── cartpole/               # Isaac-ARD-Cartpole-v0 + ard_meta.yaml
-│       ├── shadow_hand/            # Isaac-ARD-Repose-Cube-Shadow-Direct-v0 (state) + ard_meta.yaml
-│       └── shadow_hand_vision/     # Isaac-ARD-Repose-Cube-Shadow-Vision-Direct-v0 (+ -Play-v0) + ard_meta.yaml
+│   └── ard_tasks/
+│       ├── tasks/direct/
+│       │   ├── cartpole/           # Isaac-ARD-Cartpole-v0 + ard_meta.yaml
+│       │   ├── shadow_hand/        # Isaac-ARD-Repose-Cube-Shadow-Direct-v0 (state) + ard_meta.yaml
+│       │   └── shadow_hand_vision/ # Isaac-ARD-Repose-Cube-Shadow-Vision-Direct-v0 (+ -Play-v0) + ard_meta.yaml
+│       └── utils/
+│           ├── reward_logging.py   # publishes compute_reward's components to TensorBoard
+│           └── rl_games_observers.py  # fitness-plateau early stopping
 ├── scripts/
 │   ├── train.py                    # rl_games train entry point
 │   ├── list_envs.py
 │   ├── zero_agent.py
 │   ├── random_agent.py
 │   ├── run_all_experiments.sh      # run every Isaac-ARD-* task sequentially, log each
-│   ├── ard_workspace.sh            # create/refresh the `workspace` branch (rewards purged)
-│   ├── purge_rewards.py            # AST tool that blanks `_get_rewards` bodies
 │   ├── pcs_entrypoint.sh           # image CMD under PCS (artifacts -> /work/logs)
 │   ├── hpc_entrypoint.sh           # job command on CARES HPC (artifacts -> /workspace/output)
 │   ├── hpc_push.sh                 # build + push the image to the CARES registry
@@ -198,7 +203,9 @@ ard-isaaclab-tasks/
 ├── hpc/                             # ready-to-edit job files for `hpc-client submit`
 │   ├── cartpole.json
 │   └── shadow-vision.json
-├── docs/HPC.md                      # full CARES HPC Scheduler walkthrough
+├── docs/
+│   ├── HPC.md                       # full CARES HPC Scheduler walkthrough
+│   └── REFERENCE_REWARDS.md         # archived official rewards (compute_reward form)
 ├── quickstart.sh                    # PCS job command: installs ard_tasks, runs train.py
 ├── Dockerfile                       # CARES non-root IsaacLab image (see "Local docker running")
 └── source/ard_tasks/{setup.py,pyproject.toml,config/extension.toml,...}

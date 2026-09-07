@@ -10,7 +10,7 @@ Migration of the official ``Isaac-Repose-Cube-Shadow-Vision-Direct-v0`` benchmar
 (IsaacLab 2.3.X, ``isaaclab_tasks.direct.shadow_hand``). The cfg, feature
 extractor, agent hyperparameters and env machinery are copied unchanged; the
 reward now lives in ``shadow_hand_vision_env.py``
-(``ShadowHandVisionEnv._get_rewards``) as the ARD edit target, and the gym ID is
+(``ShadowHandVisionEnv.compute_reward``) as the ARD edit target, and the gym ID is
 prefixed with ``Isaac-ARD-`` to avoid clashing with the ``isaaclab_tasks``
 registration that ``train.py`` also imports.
 """
