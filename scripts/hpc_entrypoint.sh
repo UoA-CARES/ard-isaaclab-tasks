@@ -44,7 +44,7 @@
 #   ARD_SRC         if set, prepended to PYTHONPATH -- see "Reward iteration" below
 #
 # Reward iteration (ARD): the scheduler *pulls a prebuilt image*, so unlike PCS it
-# does not rebuild from your working tree. A reward edited in `_get_rewards` only
+# does not rebuild from your working tree. A reward edited in `compute_reward` only
 # reaches the cluster once the image is rebuilt and pushed (scripts/hpc_push.sh --
 # the rebuild is incremental and pushes only a few MB). If you need to iterate
 # without a push, put the edited `ard_tasks` package tree on the NAS as a dataset,

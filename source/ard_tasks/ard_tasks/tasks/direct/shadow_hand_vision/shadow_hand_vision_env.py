@@ -8,7 +8,7 @@
 Self-contained migration of the official ``Isaac-Repose-Cube-Shadow-Vision-Direct-v0``
 benchmark (IsaacLab 2.3.X): TiledCamera + CNN feature extractor. All env
 machinery is defined here so this single file is the complete environment and the
-ARD reward edit target: ``_get_rewards`` is the only method ARD rewrites (see
+ARD reward edit target: ``compute_reward`` is the only method ARD rewrites (see
 ``ard_meta.yaml``). Everything else — scene, observations, resets,
 success/fitness metrics — is unchanged from the official source.
 """
@@ -39,6 +39,7 @@ from isaaclab.utils.math import (
 from ard_tasks.tasks.direct.shadow_hand.shadow_hand_env_cfg import ShadowHandEnvCfg
 
 from .feature_extractor import FeatureExtractor, FeatureExtractorCfg
+from ard_tasks.utils.reward_logging import log_reward_components, reset_episode_log
 
 
 @configclass
@@ -175,31 +176,39 @@ class ShadowHandVisionEnv(DirectRLEnv):
         )
 
     def _get_rewards(self) -> torch.Tensor:
-        """Compute per-env scalar reward.
+        """Framework hook. NOT an ARD edit target — ``compute_reward`` below is.
 
-        All reward shaping, dense/sparse signals, and termination bonuses
-        must be computed inside this method. Return shape: (num_envs,).
-        This method is the sole edit target for the ARD framework.
-
-        Success tracking, goal resets, and the ``fitness_function`` metric live
-        in ``_update_success_metrics`` (called from ``_get_dones``) so purging
-        this method never disturbs the score ARD is evaluated on. The state this
-        reward reads is prepared before the call: ``self.goal_dist``,
-        ``self.rot_dist`` and ``self.goal_resets``.
+        Calls the reward workspace, publishes every component it returned to
+        TensorBoard (via ``extras["log"]``), and hands the total back to the RL
+        algorithm.
         """
-        dist_rew = self.goal_dist * self.cfg.dist_reward_scale
-        rot_rew = 1.0 / (torch.abs(self.rot_dist) + self.cfg.rot_eps) * self.cfg.rot_reward_scale
-        action_penalty = torch.sum(self.actions**2, dim=-1)
-
-        total_reward = dist_rew + rot_rew + action_penalty * self.cfg.action_penalty_scale
-        # success bonus: object orientation within `success_tolerance` of the goal this step
-        total_reward = torch.where(self.goal_resets, total_reward + self.cfg.reach_goal_bonus, total_reward)
-        # fall penalty: object drifted past `fall_dist` from the in-hand position
-        total_reward = torch.where(
-            self.goal_dist >= self.cfg.fall_dist, total_reward + self.cfg.fall_penalty, total_reward
-        )
-
+        total_reward, reward_components = self.compute_reward()
+        log_reward_components(self, total_reward, reward_components)
         return total_reward
+
+    def compute_reward(self) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+        """<<< ARD EDIT TARGET >>> — the reward workspace.
+
+        All reward shaping, dense/sparse signals, and termination bonuses are
+        computed here, from ``self.*`` environment state only. Returns two things:
+
+        1. ``total_reward``: the per-env reward the policy optimises, shape (num_envs,).
+        2. ``reward_components``: a dict naming each individual term that went into
+           the total, each also shape (num_envs,). The framework logs the mean of
+           each one as ``Episode/components_<name>``, so every component stays observable
+           across training and can be rescaled or discarded next iteration. Use the
+           same key set on every step.
+
+        The state this reward reads is prepared before the call, in
+        ``_get_dones`` / ``_update_success_metrics``: ``self.goal_dist``,
+        ``self.rot_dist`` and ``self.goal_resets``. Success tracking and the fixed
+        ``fitness_function`` metric live there too, so rewriting this method never
+        disturbs the score ARD is evaluated on.
+        """
+        total_reward = torch.zeros(self.num_envs, device=self.device)
+        reward_components: dict[str, torch.Tensor] = {}
+
+        return total_reward, reward_components
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         self._compute_intermediate_values()
@@ -227,14 +236,14 @@ class ShadowHandVisionEnv(DirectRLEnv):
             time_out = time_out | max_success_reached
 
         # Update successes, goal resets, and the ARD fitness metric OUTSIDE the
-        # reward so `_get_rewards` can be purged/regenerated without touching them.
+        # reward so `compute_reward` can be regenerated without touching them.
         self._update_success_metrics(out_of_reach, time_out)
         return out_of_reach, time_out
 
     def _update_success_metrics(self, out_of_reach: torch.Tensor, time_out: torch.Tensor) -> None:
         """Update success counters, goal resets, and the ARD fitness metric.
 
-        Kept OUT of ``_get_rewards`` (the ARD edit target). Runs at the end of
+        Kept OUT of ``compute_reward`` (the ARD edit target). Runs at the end of
         ``_get_dones``, before ``_get_rewards``, and prepares ``self.goal_resets``
         for the reward's success bonus. ``self.goal_resets`` is an independent
         tensor, so the goal-pose reset below (which zeroes ``self.reset_goal_buf``)
@@ -261,10 +270,11 @@ class ShadowHandVisionEnv(DirectRLEnv):
         )
 
         # Fixed ARD evaluation metric (mirrors cartpole's `fitness_function` key).
-        if "log" not in self.extras:
-            self.extras["log"] = dict()
-        self.extras["log"]["consecutive_successes"] = self.consecutive_successes.mean()
-        self.extras["log"]["fitness_function"] = self.consecutive_successes.mean()
+        # Starting a fresh dict here also gives `_get_rewards` a clean per-step log
+        # to add the reward components to; `_get_dones` runs first each step.
+        log = reset_episode_log(self)
+        log["consecutive_successes"] = self.consecutive_successes.mean()
+        log["fitness_function"] = self.consecutive_successes.mean()
 
         # Sample fresh goals for envs that just reached their target.
         goal_env_ids = self.reset_goal_buf.nonzero(as_tuple=False).squeeze(-1)
