@@ -54,6 +54,47 @@ parser.add_argument("--export_io_descriptors", action="store_true", default=Fals
 parser.add_argument(
     "--plasticity", action="store_true", default=False, help="Enable plasticity monitoring/unit-replacement."
 )
+# Warm start: treat --checkpoint as a transfer onto a (possibly) different reward
+# function rather than as a resume of an interrupted run. The three tunables are
+# tri-state - left as None they are simply not written into the agent config, so
+# rl_games' own defaults for config.warm_start apply and there is one place to
+# change a default rather than two.
+parser.add_argument(
+    "--warm_start",
+    action="store_true",
+    default=False,
+    help="Treat --checkpoint as a warm start (transfer the policy) instead of a full resume.",
+)
+parser.add_argument(
+    "--warm_start_reset_optimizer",
+    type=lambda x: bool(strtobool(x)),
+    default=None,
+    help="Warm start: drop the checkpoint's optimizer moments and AMP scaler.",
+)
+parser.add_argument(
+    "--warm_start_reset_lr_schedule",
+    type=lambda x: bool(strtobool(x)),
+    default=None,
+    help="Warm start: drop the checkpoint's last_lr/entropy_coef and use the config values.",
+)
+parser.add_argument(
+    "--warm_start_reset_obs_normalizer",
+    type=lambda x: bool(strtobool(x)),
+    default=None,
+    help="Warm start: reset the observation normalizer statistics (default: keep them).",
+)
+parser.add_argument(
+    "--warm_start_reset_value_normalizer",
+    type=lambda x: bool(strtobool(x)),
+    default=None,
+    help="Warm start: reset the value normalizer statistics (default: reset them).",
+)
+parser.add_argument(
+    "--critic_warmup_epoch_count",
+    type=int,
+    default=None,
+    help="Warm start: critic-only epochs after the transfer. Not implemented yet; must be 0.",
+)
 parser.add_argument(
     "--ray-proc-id", "-rid", type=int, default=None, help="Automatically configured by Ray integration, otherwise None."
 )
@@ -64,6 +105,11 @@ args_cli, hydra_args = parser.parse_known_args()
 # always enable cameras to record video
 if args_cli.video:
     args_cli.enable_cameras = True
+
+# Checked here rather than in main() so it fails immediately, instead of after
+# the several minutes it takes to launch Omniverse and build the environment.
+if args_cli.warm_start and args_cli.checkpoint is None:
+    parser.error("--warm_start requires --checkpoint: there is nothing to warm start from.")
 
 # clear out sys.argv for Hydra
 sys.argv = [sys.argv[0]] + hydra_args
@@ -140,6 +186,23 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # enable plasticity monitoring from the CLI, keeping any tuned block from the agent config
     if args_cli.plasticity:
         agent_cfg["params"]["config"].setdefault("plasticity", {})["enabled"] = True
+
+    # enable warm start from the CLI, keeping any tuned block from the agent config.
+    # rl_games decides how to apply the checkpoint by reading this block, so
+    # runner.run() below still just hands it the same --checkpoint path.
+    if args_cli.warm_start:
+        warm_start_cfg = agent_cfg["params"]["config"].setdefault("warm_start", {})
+        warm_start_cfg["enabled"] = True
+        for value, key in (
+            (args_cli.warm_start_reset_optimizer, "reset_optimizer"),
+            (args_cli.warm_start_reset_lr_schedule, "reset_lr_schedule"),
+            (args_cli.warm_start_reset_obs_normalizer, "reset_obs_normalizer"),
+            (args_cli.warm_start_reset_value_normalizer, "reset_value_normalizer"),
+            (args_cli.critic_warmup_epoch_count, "critic_warmup_epoch_count"),
+        ):
+            if value is not None:
+                warm_start_cfg[key] = value
+        print(f"[INFO]: Warm start enabled: {warm_start_cfg}")
 
     # multi-gpu training config
     if args_cli.distributed:
