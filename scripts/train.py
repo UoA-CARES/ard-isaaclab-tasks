@@ -93,7 +93,13 @@ parser.add_argument(
     "--critic_warmup_epoch_count",
     type=int,
     default=None,
-    help="Warm start: critic-only epochs after the transfer. Not implemented yet; must be 0.",
+    help=(
+        "Warm start: run this many critic-only epochs immediately after the transfer, to let "
+        "the value function re-fit to the new reward before the policy is allowed to move. "
+        "The actor head is frozen for those epochs, and when the network shares a trunk "
+        "between actor and critic the trunk is frozen too, so only the value head trains. "
+        "The epochs come out of the run's normal budget. Default 0 (disabled)."
+    ),
 )
 parser.add_argument(
     "--ray-proc-id", "-rid", type=int, default=None, help="Automatically configured by Ray integration, otherwise None."
@@ -110,6 +116,13 @@ if args_cli.video:
 # the several minutes it takes to launch Omniverse and build the environment.
 if args_cli.warm_start and args_cli.checkpoint is None:
     parser.error("--warm_start requires --checkpoint: there is nothing to warm start from.")
+
+# The warm-start tunables are only written into the agent config under --warm_start
+# (see below), so passing one without it would otherwise be silently ignored.
+if args_cli.critic_warmup_epoch_count is not None and not args_cli.warm_start:
+    parser.error("--critic_warmup_epoch_count requires --warm_start: the warmup window is anchored to the transfer.")
+if args_cli.critic_warmup_epoch_count is not None and args_cli.critic_warmup_epoch_count < 0:
+    parser.error("--critic_warmup_epoch_count must be >= 0.")
 
 # clear out sys.argv for Hydra
 sys.argv = [sys.argv[0]] + hydra_args
