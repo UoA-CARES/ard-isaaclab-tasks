@@ -54,6 +54,7 @@ set -euo pipefail
 
 PYTHON="${ISAAC_PYTHON:-/isaac-sim/python.sh}"
 TRAIN="${TRAIN_SCRIPT:-/opt/ard-isaaclab-tasks/scripts/train.py}"
+PLAY="${PLAY_SCRIPT:-/opt/ard-isaaclab-tasks/scripts/play.py}"
 OUTPUT_DIR="${OUTPUT_DIR:-/workspace/output}"
 
 if [ ! -x "$PYTHON" ]; then
@@ -81,6 +82,32 @@ if [ -n "${WANDB_API_KEY:-}" ]; then
   [ -n "${WANDB_NAME:-}" ]    && args+=(--wandb-name "$WANDB_NAME")
 fi
 
+# Determine execution mode from the first argument (default to train)
+TARGET_SCRIPT="$TRAIN"
+mode_label="train"
+
+if [ "$#" -gt 0 ]; then
+  case "$1" in
+    play|eval)
+      TARGET_SCRIPT="$PLAY"
+      mode_label="play"
+      if [ "$mode_label" = "play" ]; then
+        baked_ckpt="/opt/ard-isaaclab-tasks/scripts/warm_start/checkpoint.pth"
+        staged_dir="$OUTPUT_DIR/logs/rl_games/play/nn"
+        mkdir -p "$staged_dir"
+        cp "$baked_ckpt" "$staged_dir/model.pth"
+        args+=(--checkpoint "$staged_dir/model.pth")
+      fi
+      shift
+      ;;
+    train)
+      TARGET_SCRIPT="$TRAIN"
+      mode_label="train"
+      shift
+      ;;
+  esac
+fi
+
 if [ "$#" -gt 0 ]; then
   # Scheduler path: the training flags are the job `command` arguments.
   args+=("$@")
@@ -89,15 +116,24 @@ else
   # Fallback path (manual `docker run` with no args): derive flags from env vars.
   task_label="${TASK:-Isaac-ARD-Cartpole-v0}"
   args+=(--task "$task_label")
-  [ -n "${MAX_ITERATIONS:-}" ] && args+=(--max_iterations "$MAX_ITERATIONS")
   [ -n "${NUM_ENVS:-}" ]       && args+=(--num_envs "$NUM_ENVS")
   [ -n "${SEED:-}" ]           && args+=(--seed "$SEED")
+  if [ "$mode_label" = "train" ]; then
+    [ -n "${MAX_ITERATIONS:-}" ] && args+=(--max_iterations "$MAX_ITERATIONS")
+  else
+  # Play-specific env var fallbacks
+    [ -n "${CHECKPOINT:-}" ] && args+=(--checkpoint "$CHECKPOINT")
+    [ "${VIDEO:-false}" = "true" ] && args+=(--video)
+    [ -n "${VIDEO_LENGTH:-}" ] && args+=(--video_length "$VIDEO_LENGTH")
+  fi
+
   # EXTRA_ARGS is deliberately word-split so callers can pass multiple flags.
   # shellcheck disable=SC2206
   [ -n "${EXTRA_ARGS:-}" ] && args+=(${EXTRA_ARGS})
 fi
 
 echo "[hpc] user=$(id -u):$(id -g)  cwd=$(pwd)"
-echo "[hpc] task=${task_label}  artifacts -> ${OUTPUT_DIR}/logs (preserved to the NAS)"
-echo "[hpc] exec: ${PYTHON} train.py ${args[*]}"
-exec "$PYTHON" "$TRAIN" "${args[@]}"
+echo "[hpc] mode=${mode_label}  script=${TARGET_SCRIPT}"
+echo "[hpc] task=${task_label}  artifacts -> ${OUTPUT_DIR}/logs"
+echo "[hpc] exec: ${PYTHON} ${TARGET_SCRIPT} ${args[*]}"
+exec "$PYTHON" "$TARGET_SCRIPT" "${args[@]}"
