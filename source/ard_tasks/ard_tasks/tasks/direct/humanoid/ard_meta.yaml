@@ -1,0 +1,25 @@
+# ARD task metadata — used by ARD as --taskconfig directly.
+task: "Isaac-ARD-Humanoid-Direct-v0"
+env_file: "source/ard_tasks/ard_tasks/tasks/direct/humanoid/humanoid_env.py"
+description: >
+  Control a 21-actuator humanoid robot to run as far as possible along a fixed
+  forward direction, as quickly as possible, without falling over. The episode
+  ends early if the robot's torso drops below a minimum height.
+task_specific_instruction: >
+  **Verifying success**: Success is forward progress — how much ground the
+  humanoid's torso covers along the target direction over the course of the
+  clip, while remaining upright. A robot that stays alive the whole episode
+  but barely moves forward has not succeeded, even though it never falls.
+
+   1. High-frequency joint jitter: Rapid, low-amplitude joint vibration or twitching without producing smooth, clear forward progress.
+
+   2. Abnormal gait mechanics: Shuffling, dragging, crawling, or asymmetric strides where one leg crosses the midline while the other short-steps (limping or hitched locomotion).
+
+   3. Severe instability: Torso pitching, rolling, or stumbling far enough to lose balance, even if the body remains off the ground.
+
+   4. Passive freezing: Coming to a complete stop or remaining locked in a static standing pose rather than moving toward the goal.
+
+   5. Uncontrolled upper-body motion: Non-standard running arm action, specifically arms held overhead, wild flailing, or heavy lateral swinging across the midline.
+
+   6. Non-neutral foot strike: Continuous tiptoe contact (lack of heel drop) or pushing off with feet rotated/flared sharply outward.
+

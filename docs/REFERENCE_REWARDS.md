@@ -11,9 +11,10 @@ Use the code below to restore a task's official reward by hand when you need a
 baseline to compare an ARD-designed reward against.
 
 Source: IsaacLab 2.3.2, the `Isaac-Cartpole-Direct-v0`,
-`Isaac-Repose-Cube-Shadow-Direct-v0`, and `Isaac-Repose-Cube-Shadow-Vision-Direct-v0`
-environments. Reproduced verbatim apart from the `self.*` reads that the
-ard-isaaclab-tasks migration already hoisted out of the reward (see the notes).
+`Isaac-Repose-Cube-Shadow-Direct-v0`, `Isaac-Repose-Cube-Shadow-Vision-Direct-v0`,
+and `Isaac-Humanoid-Direct-v0` environments. Reproduced verbatim apart from the
+`self.*` reads that the ard-isaaclab-tasks migration already hoisted out of the
+reward (see the notes).
 
 ---
 
@@ -57,6 +58,93 @@ The official IsaacLab source computes this in a `@torch.jit.script` free functio
 `compute_rewards(...)` taking the scales and joint states as arguments; the
 migration inlined it and read the same quantities off `self`. The component dict
 is new (the official function returned only the total).
+
+---
+
+## Humanoid — `Isaac-ARD-Humanoid-Direct-v0`
+
+`source/ard_tasks/ard_tasks/tasks/direct/humanoid/humanoid_env.py`
+
+Reward scales, from `HumanoidEnvCfg`:
+
+| cfg field | value |
+|---|---|
+| `heading_weight` | `0.5` |
+| `up_weight` | `0.1` |
+| `energy_cost_scale` | `0.05` |
+| `actions_cost_scale` | `0.01` |
+| `alive_reward_scale` | `2.0` |
+| `dof_vel_scale` | `0.1` |
+| `death_cost` | `-1.0` |
+
+```python
+def compute_reward(self) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    heading_weight_tensor = torch.ones_like(self.heading_proj) * self.cfg.heading_weight
+    heading_reward = torch.where(
+        self.heading_proj > 0.8, heading_weight_tensor, self.cfg.heading_weight * self.heading_proj / 0.8
+    )
+
+    # aligning up axis of robot and environment
+    up_reward = torch.zeros_like(heading_reward)
+    up_reward = torch.where(self.up_proj > 0.93, up_reward + self.cfg.up_weight, up_reward)
+
+    # energy penalty for movement
+    actions_cost = torch.sum(self.actions**2, dim=-1)
+    electricity_cost = torch.sum(
+        torch.abs(self.actions * self.dof_vel * self.cfg.dof_vel_scale) * self.motor_effort_ratio.unsqueeze(0),
+        dim=-1,
+    )
+
+    # dof at limit cost
+    dof_at_limit_cost = torch.sum(self.dof_pos_scaled > 0.98, dim=-1)
+
+    # reward for duration of staying alive, and progress toward the target
+    alive_reward = torch.ones_like(self.potentials) * self.cfg.alive_reward_scale
+    progress_reward = self.potentials - self.prev_potentials
+
+    total_reward = (
+        progress_reward
+        + alive_reward
+        + up_reward
+        + heading_reward
+        - self.cfg.actions_cost_scale * actions_cost
+        - self.cfg.energy_cost_scale * electricity_cost
+        - dof_at_limit_cost
+    )
+    # adjust total_reward for fallen agents
+    total_reward = torch.where(
+        self.reset_terminated, torch.ones_like(total_reward) * self.cfg.death_cost, total_reward
+    )
+
+    return total_reward, {
+        "progress": progress_reward,
+        "alive": alive_reward,
+        "up": up_reward,
+        "heading": heading_reward,
+        "actions_cost": -self.cfg.actions_cost_scale * actions_cost,
+        "electricity_cost": -self.cfg.energy_cost_scale * electricity_cost,
+        "dof_at_limit_cost": -dof_at_limit_cost,
+    }
+```
+
+Notes on how this differs from the file it was removed from:
+
+- The official source computes this in a `@torch.jit.script` free function
+  `compute_rewards(...)` taking the scales, `up_proj`/`heading_proj`, `dof_vel`,
+  `dof_pos_scaled`, `potentials`/`prev_potentials`, and `motor_effort_ratio` as
+  arguments; the migration inlined it and reads the same quantities off `self`
+  (all of them prepared by `_compute_intermediate_values`, called from
+  `_get_dones` before `_get_rewards` runs). The component dict is new (the
+  official function returned only the total, plus a `None` placeholder for a
+  components dict it never populated).
+- The fixed `fitness_function` metric is **not** `progress_reward` recomputed
+  here — it is logged independently in `_get_dones`, from the same
+  `self.potentials`/`self.prev_potentials` state, so an ARD-rewritten
+  `compute_reward` can drop or rescale `progress_reward` without touching the
+  score ARD is evaluated on.
+- `dof_at_limit_cost` is a count (`torch.sum(bool_tensor, dim=-1)`), not a
+  scaled tensor — reproduced as-is from the official source, which subtracts it
+  unscaled.
 
 ---
 

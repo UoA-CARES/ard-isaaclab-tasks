@@ -198,6 +198,7 @@ ard-isaaclab-tasks/
 │   └── ard_tasks/
 │       ├── tasks/direct/
 │       │   ├── cartpole/           # Isaac-ARD-Cartpole-v0 + ard_meta.yaml
+│       │   ├── humanoid/           # Isaac-ARD-Humanoid-Direct-v0 + ard_meta.yaml
 │       │   ├── shadow_hand/        # Isaac-ARD-Repose-Cube-Shadow-Direct-v0 (state) + ard_meta.yaml
 │       │   └── shadow_hand_vision/ # Isaac-ARD-Repose-Cube-Shadow-Vision-Direct-v0 (+ -Play-v0) + ard_meta.yaml
 │       └── utils/
