@@ -15,8 +15,6 @@ task_specific_instruction: >
   **Signs of undesirable behavior**: 
   1. High-frequency joint vibration/jittering used to generate artificial reward.
   2. Dropping or flicking the object into an uncontrolled trajectory.
-  3. Freezing/stagnating in a static grip to collect passive rewards without attempting goal rotation.
-  4. Complete loss of grip over the cube causing it to fall from the hand. 
+  3. Freezing/stagnating in a static grip to collect passive rewards without attempting goal rotation. This is a major defect.
+  4. Complete loss of grip over the cube causing it to fall from the hand. In simulation, the cube will be teleported back above the hand, but this is still a major defect.
 
-  If the robot uses an unusual or unexpected finger sequence, but maintains controlled, stable, and smooth physical contact 
-  while rotating the object toward the goal, then it may be valid task progress.

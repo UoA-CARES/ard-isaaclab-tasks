@@ -11,15 +11,11 @@ task_specific_instruction: >
   clip, while remaining upright. A robot that stays alive the whole episode
   but barely moves forward has not succeeded, even though it never falls.
 
+  **Signs of undesirable behavior**: 
    1. High-frequency joint jitter: Rapid, low-amplitude joint vibration or twitching without producing smooth, clear forward progress.
-
-   2. Abnormal gait mechanics: Shuffling, dragging, crawling, or asymmetric strides where one leg crosses the midline while the other short-steps (limping or hitched locomotion).
-
-   3. Severe instability: Torso pitching, rolling, or stumbling far enough to lose balance, even if the body remains off the ground.
-
-   4. Passive freezing: Coming to a complete stop or remaining locked in a static standing pose rather than moving toward the goal.
-
-   5. Uncontrolled upper-body motion: Non-standard running arm action, specifically arms held overhead, wild flailing, or heavy lateral swinging across the midline.
-
-   6. Non-neutral foot strike: Continuous tiptoe contact (lack of heel drop) or pushing off with feet rotated/flared sharply outward.
-
+   2. Abnormal gait mechanics: Shuffling, dragging, crawling, or asymmetric strides where one leg crosses the midline while the other short-steps (limping or hitched locomotion). This is a mild defect. 
+   3. Severe instability: Torso pitching, rolling, or stumbling far enough to lose balance, even if the body remains off the ground. This is a mild defect.
+   4. Passive freezing: Coming to a complete stop or remaining locked in a static standing pose rather than moving toward the goal. This is a major defect. 
+   5. Uncontrolled upper-body motion: Non-standard running arm action, specifically arms held overhead, wild flailing, or heavy lateral swinging across the midline. This is a mild defect.
+   6. Non-neutral foot strike: Continuous tiptoe contact (lack of heel drop) or pushing off with feet rotated/flared sharply outward. This is a mild defect.
+   7. Falling: The humanoid's torso drops to the ground, or the robot otherwise loses balance and collapses. This will result in the robot teleporting back to upright position, but is still a major defect.
