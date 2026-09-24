@@ -68,7 +68,7 @@ params:
     lr_schedule: adaptive
     schedule_type: standard
     kl_threshold: 0.016
-    score_to_win: 100000
+    score_to_win: 10000000
     max_epochs: 5000
     save_best_after: 100
     save_frequency: 200
@@ -89,12 +89,18 @@ params:
     # Interval units are summary() calls, i.e. epochs.
     plasticity:
       enabled: false
-      replacement_enabled: false          # CBP neuron replacement - not implemented yet
+      replacement_enabled: false          # CBP neuron replacement 
       replacement_strategy: cbp
 
-      # Replacement schedule (accepted, inert until replacement lands)
+      # Replacement schedule. maturity_threshold is in units of training
+      # minibatch forward passes (mini_epochs * num_minibatches per epoch),
+      # not epochs or env steps - shadow_hand's 5000-epoch run gives an age
+      # ceiling of ~100,000 (5 mini_epochs * 4 minibatches/epoch), so 1000
+      # (CARES's own default) is only ~1% of that ceiling. Plenty of budget
+      # to spare here, so give units longer to prove themselves: ~5000
+      # (~5% of the ceiling).
       replacement_rate: 1.0e-5
-      maturity_threshold: 1000
+      maturity_threshold: 5000
       activation_window_size: 10000
 
       # Diagnostics schedule

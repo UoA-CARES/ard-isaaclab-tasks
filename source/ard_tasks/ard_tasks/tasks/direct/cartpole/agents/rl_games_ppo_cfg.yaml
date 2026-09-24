@@ -86,12 +86,18 @@ params:
     # Interval units are summary() calls, i.e. epochs.
     plasticity:
       enabled: false
-      replacement_enabled: false          # CBP neuron replacement - not implemented yet
+      replacement_enabled: false          # CBP neuron replacement - set true for Experiment C
       replacement_strategy: cbp
 
-      # Replacement schedule (accepted, inert until replacement lands)
+      # Replacement schedule. maturity_threshold is in units of training
+      # minibatch forward passes (mini_epochs * num_minibatches per epoch),
+      # not epochs or env steps - cartpole's short 150-epoch run gives an
+      # age ceiling of only ~9,600 (8 mini_epochs * 8 minibatches/epoch),
+      # so 1000 (CARES's own default, tuned for a much longer run) leaves
+      # too little of the run left once units start becoming eligible.
+      # ~500 (~5% of the ceiling) instead.
       replacement_rate: 1.0e-5
-      maturity_threshold: 1000
+      maturity_threshold: 500
       activation_window_size: 10000
 
       # Diagnostics schedule
