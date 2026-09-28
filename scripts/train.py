@@ -54,6 +54,20 @@ parser.add_argument("--export_io_descriptors", action="store_true", default=Fals
 parser.add_argument(
     "--plasticity", action="store_true", default=False, help="Enable plasticity monitoring/unit-replacement."
 )
+# Plasticity injection: overrides the agent config's plasticity.replacement_enabled
+# / replacement_strategy. Left as None, the agent config's own values apply.
+# choices mirrors the strategies rl_games implements, so a typo fails here rather
+# than at the first replacement step, deep into training.
+parser.add_argument(
+    "--plasticity_injection_strategy",
+    type=str,
+    default=None,
+    choices=("cbp",),
+    help=(
+        "Enable neuron replacement with this strategy (sets plasticity.replacement_enabled and "
+        "plasticity.replacement_strategy). Requires --plasticity."
+    ),
+)
 # Warm start: treat --checkpoint as a transfer onto a (possibly) different reward
 # function rather than as a resume of an interrupted run. The three tunables are
 # tri-state - left as None they are simply not written into the agent config, so
@@ -123,6 +137,11 @@ if args_cli.critic_warmup_epoch_count is not None and not args_cli.warm_start:
     parser.error("--critic_warmup_epoch_count requires --warm_start: the warmup window is anchored to the transfer.")
 if args_cli.critic_warmup_epoch_count is not None and args_cli.critic_warmup_epoch_count < 0:
     parser.error("--critic_warmup_epoch_count must be >= 0.")
+
+# rl_games only replaces units when plasticity.enabled is also true, so without
+# --plasticity the injection strategy would be silently ignored.
+if args_cli.plasticity_injection_strategy and not args_cli.plasticity:
+    parser.error("--plasticity_injection_strategy requires --plasticity: replacement runs inside the plasticity manager.")
 
 # clear out sys.argv for Hydra
 sys.argv = [sys.argv[0]] + hydra_args
@@ -199,6 +218,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # enable plasticity monitoring from the CLI, keeping any tuned block from the agent config
     if args_cli.plasticity:
         agent_cfg["params"]["config"].setdefault("plasticity", {})["enabled"] = True
+
+    # enable plasticity injection (neuron replacement) from the CLI
+    if args_cli.plasticity_injection_strategy:
+        plasticity_cfg = agent_cfg["params"]["config"].setdefault("plasticity", {})
+        plasticity_cfg["replacement_enabled"] = True
+        plasticity_cfg["replacement_strategy"] = args_cli.plasticity_injection_strategy
+        print(f"[INFO]: Plasticity injection enabled: strategy={args_cli.plasticity_injection_strategy}")
 
     # enable warm start from the CLI, keeping any tuned block from the agent config.
     # rl_games decides how to apply the checkpoint by reading this block, so

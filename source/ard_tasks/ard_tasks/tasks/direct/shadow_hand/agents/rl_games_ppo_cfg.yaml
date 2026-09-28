@@ -22,7 +22,22 @@ params:
   # doesn't have this fine grained control but made it close
   network:
     name: actor_critic
-    separate: False
+    # Separate actor/critic trunks (this task only; cartpole and shadow_hand_vision
+    # still share one). Two reasons, both about features that a shared trunk guts:
+    #   - warm_start.critic_warmup_epoch_count only means something here. With a
+    #     shared trunk the critic-only window can move nothing but value.weight /
+    #     value.bias - a linear readout on a frozen representation - so the critic
+    #     cannot actually re-fit to the new reward. With separate trunks the whole
+    #     critic trunk retrains while the actor trunk + mu/sigma stay frozen.
+    #   - plasticity diagnostics split into "actor" and "critic" managers instead of
+    #     one "shared", so dormancy / rank collapse can be attributed to the policy
+    #     or to the value function rather than averaged over both.
+    # Cost: the [512, 512, 256, 128] trunk is duplicated, roughly doubling
+    # actor-critic parameters and the MLP's forward/backward cost.
+    # NOT set on shadow_hand_vision: there it would build a second CNN encoder AND
+    # leave critic_mlp with no gradient at all, since central_value_config owns the
+    # value function there (has_value_loss is False).
+    separate: True
     space:
       continuous:
         mu_activation: None
@@ -67,11 +82,15 @@ params:
     learning_rate: 5e-4
     lr_schedule: adaptive
     schedule_type: standard
+    # L2 penalty and Adam momentum coefficients, read by rl_games'
+    # A2CAgent and forwarded into PlasticityAdam / torch.optim.Adam.
+    weight_decay: 0.0
+    betas: [0.9, 0.999]
     kl_threshold: 0.016
     score_to_win: 10000000
     max_epochs: 5000
     save_best_after: 100
-    save_frequency: 200
+    save_frequency: 1000
     print_stats: True
     grad_norm: 1.0
     entropy_coef: 0.0
@@ -99,7 +118,7 @@ params:
       # (CARES's own default) is only ~1% of that ceiling. Plenty of budget
       # to spare here, so give units longer to prove themselves: ~5000
       # (~5% of the ceiling).
-      replacement_rate: 1.0e-5
+      replacement_rate: 1.0e-4
       maturity_threshold: 5000
       activation_window_size: 10000
 
@@ -120,7 +139,7 @@ params:
       # Rows kept from a single [num_envs, hidden] rollout forward pass
       rollout_samples_per_forward: 256
 
-      replacement_accumulate: false
+      replacement_accumulate: true
       compute_rank: true
       training_only: true
 

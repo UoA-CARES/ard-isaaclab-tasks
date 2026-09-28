@@ -118,7 +118,7 @@ ENV ISAACLAB_PATH=/opt/isaaclab
 # entrypoints echo it at startup, so every run's log names the commit it trained
 # against. That log line is the only way back to an old run's exact fork state.
 ARG RL_GAMES_REPO=https://github.com/UoA-CARES/rl_games.git
-ARG RL_GAMES_REF=master
+ARG RL_GAMES_REF=Feature/CBP
 
 # Make the fetch below cache-correct. Docker keys a RUN layer on its command
 # *text*, not on anything at the far end of the network, so `git fetch <branch>`
