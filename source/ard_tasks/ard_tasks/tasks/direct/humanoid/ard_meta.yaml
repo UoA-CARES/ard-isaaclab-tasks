@@ -1,0 +1,21 @@
+# ARD task metadata — used by ARD as --taskconfig directly.
+task: "Isaac-ARD-Humanoid-Direct-v0"
+env_file: "source/ard_tasks/ard_tasks/tasks/direct/humanoid/humanoid_env.py"
+description: >
+  Control a 21-actuator humanoid robot to run as far as possible along a fixed
+  forward direction, as quickly as possible, without falling over. The episode
+  ends early if the robot's torso drops below a minimum height.
+task_specific_instruction: >
+  **Verifying success**: Success is forward progress — how much ground the
+  humanoid's torso covers along the target direction over the course of the
+  clip, while remaining upright. A robot that stays alive the whole episode
+  but barely moves forward has not succeeded, even though it never falls.
+
+  **Signs of undesirable behavior**: (each tagged with its base severity tier — minor / mild / major):
+   1. High-frequency joint jitter: Rapid, low-amplitude joint vibration or twitching without producing smooth, clear forward progress. [minor; escalates to mild if the vibration is large-amplitude or visibly violent rather than small and buzzy]
+   2. Abnormal gait mechanics: Shuffling, dragging, crawling, or asymmetric strides where one leg crosses the midline while the other short-steps (limping or hitched locomotion). [minor; escalates to mild if the gait is extremely abnormal e.g. torso/pelvis is rotated away from the forward direction, or the humanoid is running with its legs stepping side-to-side]
+   3. Severe instability: Torso pitching, rolling, or stumbling far enough to lose balance, even if the body remains off the ground. [mild; escalates to major if the instability is so severe that it causes frequent falls]
+   4. Passive freezing: Coming to a complete stop or remaining locked in a static standing pose rather than moving toward the goal. [mild only if brief/occasional and forward movement resumes after, escalates to major if persistent with no forward movement at all]
+   5. Uncontrolled upper-body motion: Arms swung laterally or across the midline, thrown overhead, held statically instead of swinging, or moving erratically/inconsistently from stride to stride — rather than a sagittal, alternating swing synced to stride (which is normal running form regardless of amplitude). [minor if the deviation is controlled and repeatable — e.g. a static hold, reduced-range swing, or carried somewhat higher/wider than typical but still steady stride-to-stride; escalates to mild if the arms are wildly outside the sagittal plane (overhead, far outwards) OR the motion is wild and flailing]
+   6. Non-neutral foot strike: Continuous tiptoe contact (lack of heel drop) or pushing off with feet rotated/flared sharply outward. [minor; escalates to mild if the foot strike is extremely abnormal, such as the humanoid running on the sides of its feet or with feet rotated]
+   7. Falling: The humanoid's torso drops to the ground, or the robot otherwise loses balance and collapses. This will result in the robot teleporting back to upright position. [major, presence alone is disqualifying, regardless of how often it happens]
