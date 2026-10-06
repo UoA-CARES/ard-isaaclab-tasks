@@ -7,22 +7,6 @@ from isaaclab.sensors import CameraCfg
 # Set this to opengl convention to match the camera orientation in Isaac Sim viewport. The default USD convention is Y-up, which is different from the OpenGL convention (Z-up).
 COORD_SYS = "opengl"
 
-# Top view cameras
-TOP_VIEW_CAMERA = CameraCfg(
-    prim_path="/World/envs/env_.*/topview_camera",
-    width=640,
-    height=480,
-    offset = CameraCfg.OffsetCfg(
-        pos = (0, -0.35, 1.5),
-        rot = (1, 0, 0, 0),
-        convention = COORD_SYS
-    ),
-    data_types = ["rgb"],
-    spawn = sim_utils.PinholeCameraCfg(
-        focal_length = 20,
-    )
-)
-
 # Isometric view camera 0
 CAMERA_0 = CameraCfg(
     prim_path = "/World/envs/env_.*/camera_0",
@@ -68,6 +52,22 @@ CAMERA_2 = CameraCfg(
     data_types = ["rgb"],
     spawn = sim_utils.PinholeCameraCfg(
         focal_length = 18,
+    )
+)
+
+# Top view cameras
+CAMERA_3 = CameraCfg(
+    prim_path="/World/envs/env_.*/camera_3",
+    width=640,
+    height=480,
+    offset = CameraCfg.OffsetCfg(
+        pos = (0, -0.35, 1.5),
+        rot = (1, 0, 0, 0),
+        convention = COORD_SYS
+    ),
+    data_types = ["rgb"],
+    spawn = sim_utils.PinholeCameraCfg(
+        focal_length = 20,
     )
 )
 

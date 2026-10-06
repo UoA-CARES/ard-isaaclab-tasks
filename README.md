@@ -114,6 +114,19 @@ docker run --rm --gpus all \
         --task Isaac-ARD-Cartpole-v0 --headless'
 ```
 
+Smoke test for play.py
+```bash
+docker run --rm --gpus all \
+  -v /home/andrew/ard-isaaclab-tasks/logs/rl_games/shadow_hand/2026-07-28_13-56-38/nn:/ckpt \
+  pcs-isaaclab-ard:2.3.2 \
+  /isaac-sim/python.sh /opt/ard-isaaclab-tasks/scripts/play.py \
+    --task Isaac-ARD-Repose-Cube-Shadow-Direct-v0 \
+    --checkpoint /ckpt/shadow_hand.pth \
+    --num_envs 1 \
+    --headless \ 
+    --video
+```
+
 #### HPC running
 
 The [CARES HPC Scheduler](https://uoa-cares.github.io/hpc-client/) runs jobs on a shared GPU cluster by **pulling a prebuilt image** from the CARES registry, rather than building one per job like PCS does. That one difference drives most of the workflow: you push an image ahead of time, artifacts are only preserved from `/workspace/output`, and a reward edit needs a re-push (`scripts/hpc_push.sh`, ~1 MB per iteration) before it reaches the cluster.
@@ -185,6 +198,7 @@ ard-isaaclab-tasks/
 │   └── ard_tasks/
 │       ├── tasks/direct/
 │       │   ├── cartpole/           # Isaac-ARD-Cartpole-v0 + ard_meta.yaml
+│       │   ├── humanoid/           # Isaac-ARD-Humanoid-Direct-v0 + ard_meta.yaml
 │       │   ├── shadow_hand/        # Isaac-ARD-Repose-Cube-Shadow-Direct-v0 (state) + ard_meta.yaml
 │       │   └── shadow_hand_vision/ # Isaac-ARD-Repose-Cube-Shadow-Vision-Direct-v0 (+ -Play-v0) + ard_meta.yaml
 │       └── utils/
