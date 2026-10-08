@@ -3,15 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Script to an environment with random action agent."""
+"""Script to run an environment with zero action agent."""
 
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Random agent for Isaac Lab environments.")
+parser = argparse.ArgumentParser(description="Zero agent for Isaac Lab environments.")
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
 )
@@ -29,7 +30,6 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import gymnasium as gym
-import time
 import torch
 
 import isaaclab_tasks  # noqa: F401
@@ -39,8 +39,8 @@ import ard_tasks.tasks  # noqa: F401
 
 
 def main():
-    """Random actions agent with Isaac Lab environment."""
-    # create environment configuration
+    """Zero actions agent with Isaac Lab environment."""
+    # parse configuration
     env_cfg = parse_env_cfg(
         args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
     )
@@ -56,8 +56,8 @@ def main():
     while simulation_app.is_running():
         # run everything in inference mode
         with torch.inference_mode():
-            # sample actions from -1 to 1
-            actions = 2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1
+            # compute zero actions
+            actions = torch.ones(env.action_space.shape, device=env.unwrapped.device)
             # apply actions
             env.step(actions)
 

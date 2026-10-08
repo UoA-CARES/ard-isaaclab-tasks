@@ -44,6 +44,11 @@ args_cli, hydra_args = parser.parse_known_args()
 # always enable cameras to record video
 if args_cli.video:
     args_cli.enable_cameras = True
+    # The task cameras record env 0 only, and their reset crashes with more than one env
+    # (CUDA "index out of bounds" in Camera.reset), so video always runs a single env.
+    if args_cli.num_envs != 1:
+        print(f"[WARN] --video records env 0 only and needs --num_envs 1; using 1 instead of {args_cli.num_envs}.")
+        args_cli.num_envs = 1
 
 # clear out sys.argv for Hydra
 sys.argv = [sys.argv[0]] + hydra_args

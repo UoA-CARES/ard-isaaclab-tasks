@@ -18,6 +18,8 @@ experiment_runs/
 # USD assets
 *.usd
 *.usdc
+# ...except robot assets a task ships with (MASA hand is not on Nucleus)
+!source/ard_tasks/ard_tasks/tasks/direct/masa_hand/assets/**/*.usd
 
 # AI tools
 .claude/

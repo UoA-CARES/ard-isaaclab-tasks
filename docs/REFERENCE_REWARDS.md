@@ -10,6 +10,12 @@ Each task's editable reward now lives in `compute_reward` (see
 Use the code below to restore a task's official reward by hand when you need a
 baseline to compare an ARD-designed reward against.
 
+**How to paste a block.** The blocks start at column 0, but `compute_reward` is a
+method of the env class. Replace the whole existing `compute_reward` method (keep
+its docstring if you like) and indent every pasted line by 4 spaces. Pasted at
+column 0, the block closes the class early and every method below it is lost,
+e.g. `AttributeError: 'MasaHandEnv' object has no attribute 'compute_full_observations'`.
+
 Source: IsaacLab 2.3.2, the `Isaac-Cartpole-Direct-v0`,
 `Isaac-Repose-Cube-Shadow-Direct-v0`, `Isaac-Repose-Cube-Shadow-Vision-Direct-v0`,
 and `Isaac-Humanoid-Direct-v0` environments. Reproduced verbatim apart from the
@@ -231,6 +237,97 @@ instead of privileged object state). Its reward scales come from
 | `max_consecutive_success` | `0` | **`50`** |
 
 Use the state task's code block verbatim.
+
+---
+
+## MASA Hand repose (state) — `Isaac-ARD-Repose-Cube-Masa-Direct-v0`
+
+`source/ard_tasks/ard_tasks/tasks/direct/masa_hand/masa_hand_env.py`
+
+Not an official IsaacLab task. The reward our original MASA hand project trained
+with is **the same** as the Shadow Hand state task's above, and `MasaHandEnvCfg`
+uses the same reward scales as `ShadowHandEnvCfg`.
+
+The block below is that Shadow Hand reward plus one MASA-only term,
+`tip_overlap`, a penalty on fingertips passing through each other, which the real
+hand (a digital twin) cannot do. It was written when self-collision was off. Self-collision
+is now on (see `hand_v2_left_config.py`) and blocks crossing fingers itself, so the term
+is only a backup: under random actions it fires in 0.5% of env-steps (19.9% with
+self-collision off), and it can be dropped. The other five
+components are the Shadow Hand template unchanged: the cube rests 0.037 m from
+`in_hand_pos` on the MASA hand and 0.040 m on the Shadow Hand (open hand,
+measured), so the distance term and the other scales carry over as they are.
+
+```python
+def compute_reward(self) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    from isaaclab.utils.math import quat_apply
+
+    # Shadow Hand template, same scales (from MasaHandEnvCfg)
+    dist_rew = self.goal_dist * self.cfg.dist_reward_scale
+    rot_rew = 1.0 / (torch.abs(self.rot_dist) + self.cfg.rot_eps) * self.cfg.rot_reward_scale
+    action_penalty = torch.sum(self.actions**2, dim=-1) * self.cfg.action_penalty_scale
+
+    # MASA only: fingertips passing through each other (a backup: self-collision blocks most of it).
+    # Each fingertip (*_dp link) is a capsule: a segment along the link's local x from
+    # 0 to 19 mm, radius 7 mm. The mesh spans -9..28 mm along x and about +-9 mm across;
+    # the radius is 2 mm smaller so fingertips that only touch are not penalised.
+    tip_radius = 0.007
+    tip_overlap_scale = -100.0  # per metre of overlap depth, summed over fingertip pairs
+
+    def segment_distance(p1, d1, p2, d2):
+        """Shortest distance between segments p1 + s*d1 and p2 + t*d2, s, t in [0, 1]."""
+        r = p1 - p2
+        a, e = (d1 * d1).sum(-1), (d2 * d2).sum(-1)
+        b, c, f = (d1 * d2).sum(-1), (d1 * r).sum(-1), (d2 * r).sum(-1)
+        denom = a * e - b * b
+        s = torch.where(denom > 1e-12, (b * f - c * e) / denom.clamp(min=1e-12), torch.zeros_like(a)).clamp(0, 1)
+        t = (b * s + f) / e
+        t_clamped = t.clamp(0, 1)
+        s = torch.where(t != t_clamped, ((b * t_clamped - c) / a).clamp(0, 1), s)
+        return (r + d1 * s[..., None] - d2 * t_clamped[..., None]).norm(dim=-1)
+
+    tip_axis = torch.tensor([0.019, 0.0, 0.0], device=self.device).expand_as(self.fingertip_pos)
+    tip_dir = quat_apply(self.fingertip_rot, tip_axis)
+    i, j = torch.triu_indices(self.num_fingertips, self.num_fingertips, offset=1, device=self.device)
+    pair_dist = segment_distance(self.fingertip_pos[:, i], tip_dir[:, i], self.fingertip_pos[:, j], tip_dir[:, j])
+    tip_overlap = torch.clamp(2.0 * tip_radius - pair_dist, min=0.0).sum(dim=-1) * tip_overlap_scale
+
+    total_reward = dist_rew + rot_rew + action_penalty + tip_overlap
+    # success bonus: object orientation within `success_tolerance` of the goal this step
+    goal_bonus = torch.where(
+        self.goal_resets.bool(),
+        torch.full_like(total_reward, float(self.cfg.reach_goal_bonus)),
+        torch.zeros_like(total_reward),
+    )
+    # fall penalty: object drifted past `fall_dist` from the in-hand position
+    fall_pen = torch.where(
+        self.goal_dist >= self.cfg.fall_dist,
+        torch.full_like(total_reward, float(self.cfg.fall_penalty)),
+        torch.zeros_like(total_reward),
+    )
+    total_reward = total_reward + goal_bonus + fall_pen
+
+    return total_reward, {
+        "dist": dist_rew,
+        "rot": rot_rew,
+        "action_penalty": action_penalty,
+        "tip_overlap": tip_overlap,
+        "goal_bonus": goal_bonus,
+        "fall_penalty": fall_pen,
+    }
+```
+
+Notes:
+
+- `self.fingertip_pos` and `self.fingertip_rot` are the `*_dp` link frames (one per
+  finger), refreshed in `_get_dones` before the reward is computed. The capsule size
+  comes from the fingertip mesh in `robot-hand-control-stack`; all five fingertips use
+  the same mesh.
+- `quat_apply` is imported inside the method so the block can be pasted into
+  `compute_reward` without touching the module imports.
+- This reward is currently pasted into `masa_hand_env.py` for a baseline run, so the
+  MASA env does **not** ship blank. Restore the blank `compute_reward` (zero reward,
+  empty dict) before running ARD on this task, or the LLM sees this reward.
 
 ---
 

@@ -12,13 +12,14 @@ This is an **external IsaacLab project** (generated via `isaaclab.sh --new`): th
 
 ### Current task support
 
-Every task here is copied from the official IsaacLab 2.3.2 source and registered under an `Isaac-ARD-*` ID. In each task, all reward logic lives in a single `compute_reward` method, the one method ARD is allowed to rewrite; it returns the total reward *and* a dict of its named components, so every component stays visible in TensorBoard. See [Preparing a workspace for ARD](#preparing-a-workspace-for-ard) for how that edit contract works.
+Every task here (except the MASA hand task, see below) is copied from the official IsaacLab 2.3.2 source and registered under an `Isaac-ARD-*` ID. In each task, all reward logic lives in a single `compute_reward` method, the one method ARD is allowed to rewrite; it returns the total reward *and* a dict of its named components, so every component stays visible in TensorBoard. See [Preparing a workspace for ARD](#preparing-a-workspace-for-ard) for how that edit contract works.
 
 | Task ID | Description |
 | --- | --- |
 | `Isaac-ARD-Cartpole-v0` | Classic cartpole balancing, single-agent and low-DoF. The fast smoke-test task. |
 | `Isaac-ARD-Repose-Cube-Shadow-Direct-v0` | Shadow Hand reposes a cube to a target orientation from **state** observations. Config, spaces and agent hyperparameters are a verbatim migration of the official `Isaac-Repose-Cube-Shadow-Direct-v0` benchmark. |
 | `Isaac-ARD-Repose-Cube-Shadow-Vision-Direct-v0` | Shadow Hand reposes a cube to a target orientation from **vision** (TiledCamera + CNN feature extractor). Verbatim migration of the official `Isaac-Repose-Cube-Shadow-Vision-Direct-v0` benchmark. |
+| `Isaac-ARD-Repose-Cube-Masa-Direct-v0` | Our **MASA hand** (`hand_v2_left`, 21 actuated joints) reposes a cube from **state** observations. Not an official IsaacLab task: same env code, cube/goal/camera layout and `num_envs` (8192) as the Shadow state task, with the network size (`[2048, 1024, 512, 512]`) from our original MASA hand project. The robot USD ships in the task folder (`masa_hand/assets/`). Because the hand is also a digital twin, `scripts/convert_masa_hand.py` builds it from the hand's URDF in `robot-hand-control-stack` (meshes decimated to Shadow-Hand size, ~40k triangles) and checks it against the URDF: link frames, joint limits, effort and velocity limits. Self-collision is on (the palm-to-finger-base pairs whose convex hulls overlap at the open pose are filtered), and the joint limits come from the real hand's robot config via `model.json` (exported from `robot-hand-control-stack`; the URDF stays untouched). A target speed limit like the real hand's driver is available (`limit_motor_speed`, `motor_max_velocity_deg_s`) but off by default, like the Shadow task. |
 
 A play/eval variant `Isaac-ARD-Repose-Cube-Shadow-Vision-Direct-Play-v0` (fewer envs, CNN feature extractor in inference mode) is also registered for checking a trained policy rather than training one. An earlier, larger multi-task suite (Humanoid, Franka-Cabinet, Allegro-Repose, Forge-NutThread, Shadow-Hand-Over) was removed in v0.3.0 and remains available at tag `v0.2.0`.
 
@@ -200,6 +201,7 @@ ard-isaaclab-tasks/
 │       │   ├── cartpole/           # Isaac-ARD-Cartpole-v0 + ard_meta.yaml
 │       │   ├── humanoid/           # Isaac-ARD-Humanoid-Direct-v0 + ard_meta.yaml
 │       │   ├── shadow_hand/        # Isaac-ARD-Repose-Cube-Shadow-Direct-v0 (state) + ard_meta.yaml
+│       │   ├── masa_hand/          # Isaac-ARD-Repose-Cube-Masa-Direct-v0 (state) + ard_meta.yaml + robot USD
 │       │   └── shadow_hand_vision/ # Isaac-ARD-Repose-Cube-Shadow-Vision-Direct-v0 (+ -Play-v0) + ard_meta.yaml
 │       └── utils/
 │           ├── reward_logging.py   # publishes compute_reward's components to TensorBoard
@@ -209,6 +211,7 @@ ard-isaaclab-tasks/
 │   ├── list_envs.py
 │   ├── zero_agent.py
 │   ├── random_agent.py
+│   ├── convert_masa_hand.py        # rebuild the MASA hand USD from its URDF (+ check against the URDF)
 │   ├── run_all_experiments.sh      # run every Isaac-ARD-* task sequentially, log each
 │   ├── pcs_entrypoint.sh           # image CMD under PCS (artifacts -> /work/logs)
 │   ├── hpc_entrypoint.sh           # job command on CARES HPC (artifacts -> /workspace/output)
