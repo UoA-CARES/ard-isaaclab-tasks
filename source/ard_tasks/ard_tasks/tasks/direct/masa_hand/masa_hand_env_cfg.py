@@ -52,7 +52,7 @@ class MasaHandEnvCfg(DirectRLEnvCfg):
     # see MasaHandEnv._apply_action). Off by default, like the Shadow Hand task: finger speed then
     # comes only from the PD drives and the link masses. Turn it on with `env.limit_motor_speed=True`
     # on train.py; the cap can be overridden the same way (`env.motor_max_velocity_deg_s=240.0`).
-    limit_motor_speed: bool = True
+    limit_motor_speed: bool = False
     motor_max_velocity_deg_s: float = HAND_V2_LEFT_MOTOR_MAX_VELOCITY_DEG_S
     actuated_joint_names = [
         "palm_abd_add",

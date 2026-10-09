@@ -56,10 +56,11 @@ def main():
     while simulation_app.is_running():
         # run everything in inference mode
         with torch.inference_mode():
-            # sample actions from -1 to 1
-            actions = 2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1
-            # apply actions
-            env.step(actions)
+            actions = 2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1  # type: ignore
+            # continuously apply random actions for 1 second
+            end_time = time.monotonic() + 1.0
+            while time.monotonic() < end_time:
+                env.step(actions)
 
     # close the simulator
     env.close()

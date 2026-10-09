@@ -36,7 +36,7 @@ params:
         fixed_sigma: True
     mlp:
       # Best of the four MASA sweep runs (unit_8, v1 hand): ~11.6 consecutive successes at 5000 epochs.
-      units: [2048, 1024, 512, 512]
+      units: [512, 512, 256, 128] # [512, 512, 256, 128]   [2048, 1024, 512, 512]
       activation: elu
       d2rl: False
 

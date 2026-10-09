@@ -214,57 +214,11 @@ class MasaHandEnv(DirectRLEnv):
         return total_reward
 
     def compute_reward(self) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
-        """<<< ARD EDIT TARGET >>> — the reward workspace.
-
-        All reward shaping, dense/sparse signals, and termination bonuses are
-        computed here, from ``self.*`` environment state only. Returns two things:
-
-        1. ``total_reward``: the per-env reward the policy optimises, shape (num_envs,).
-        2. ``reward_components``: a dict naming each individual term that went into
-           the total, each also shape (num_envs,). The framework logs the mean of
-           each one as ``Episode/components_<name>``, so every component stays observable
-           across training and can be rescaled or discarded next iteration. Use the
-           same key set on every step.
-
-        The state this reward reads is prepared before the call, in
-        ``_get_dones`` / ``_update_success_metrics``: ``self.goal_dist``,
-        ``self.rot_dist`` and ``self.goal_resets``. Success tracking and the fixed
-        ``fitness_function`` metric live there too, so rewriting this method never
-        disturbs the score ARD is evaluated on.
-        """
-        from isaaclab.utils.math import quat_apply
-
-        # Shadow Hand template, same scales (from MasaHandEnvCfg)
         dist_rew = self.goal_dist * self.cfg.dist_reward_scale
         rot_rew = 1.0 / (torch.abs(self.rot_dist) + self.cfg.rot_eps) * self.cfg.rot_reward_scale
         action_penalty = torch.sum(self.actions**2, dim=-1) * self.cfg.action_penalty_scale
 
-        # MASA only: fingertips passing through each other (a backup: self-collision blocks most of it).
-        # Each fingertip (*_dp link) is a capsule: a segment along the link's local x from
-        # 0 to 19 mm, radius 7 mm. The mesh spans -9..28 mm along x and about +-9 mm across;
-        # the radius is 2 mm smaller so fingertips that only touch are not penalised.
-        tip_radius = 0.007
-        tip_overlap_scale = -100.0  # per metre of overlap depth, summed over fingertip pairs
-
-        def segment_distance(p1, d1, p2, d2):
-            """Shortest distance between segments p1 + s*d1 and p2 + t*d2, s, t in [0, 1]."""
-            r = p1 - p2
-            a, e = (d1 * d1).sum(-1), (d2 * d2).sum(-1)
-            b, c, f = (d1 * d2).sum(-1), (d1 * r).sum(-1), (d2 * r).sum(-1)
-            denom = a * e - b * b
-            s = torch.where(denom > 1e-12, (b * f - c * e) / denom.clamp(min=1e-12), torch.zeros_like(a)).clamp(0, 1)
-            t = (b * s + f) / e
-            t_clamped = t.clamp(0, 1)
-            s = torch.where(t != t_clamped, ((b * t_clamped - c) / a).clamp(0, 1), s)
-            return (r + d1 * s[..., None] - d2 * t_clamped[..., None]).norm(dim=-1)
-
-        tip_axis = torch.tensor([0.019, 0.0, 0.0], device=self.device).expand_as(self.fingertip_pos)
-        tip_dir = quat_apply(self.fingertip_rot, tip_axis)
-        i, j = torch.triu_indices(self.num_fingertips, self.num_fingertips, offset=1, device=self.device)
-        pair_dist = segment_distance(self.fingertip_pos[:, i], tip_dir[:, i], self.fingertip_pos[:, j], tip_dir[:, j])
-        tip_overlap = torch.clamp(2.0 * tip_radius - pair_dist, min=0.0).sum(dim=-1) * tip_overlap_scale
-
-        total_reward = dist_rew + rot_rew + action_penalty + tip_overlap
+        total_reward = dist_rew + rot_rew + action_penalty
         # success bonus: object orientation within `success_tolerance` of the goal this step
         goal_bonus = torch.where(
             self.goal_resets.bool(),
@@ -283,7 +237,6 @@ class MasaHandEnv(DirectRLEnv):
             "dist": dist_rew,
             "rot": rot_rew,
             "action_penalty": action_penalty,
-            "tip_overlap": tip_overlap,
             "goal_bonus": goal_bonus,
             "fall_penalty": fall_pen,
         }
@@ -362,6 +315,7 @@ class MasaHandEnv(DirectRLEnv):
     def _reset_idx(self, env_ids: Sequence[int] | None):
         if env_ids is None:
             env_ids = self.hand._ALL_INDICES
+        assert env_ids is not None  # for type checker: _ALL_INDICES is untyped
         # resets articulation and rigid body attributes
         super()._reset_idx(env_ids)
 
