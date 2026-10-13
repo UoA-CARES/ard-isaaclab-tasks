@@ -33,6 +33,7 @@ from typing import Any
 
 try:
     from hpc_client import HPCClient
+    from hpc_client.client import TERMINAL_STATUSES
     from hpc_client.config import HPCConfig
     from hpc_client.errors import HPCAuthenticationError, HPCClientError
 except ImportError:
@@ -239,7 +240,8 @@ def main() -> None:
 
     client = connect()
 
-    active = len(client.jobs())
+    # jobs() returns every job ever submitted; only unfinished ones count toward the limit.
+    active = sum(1 for job in client.jobs() if job.get("status") not in TERMINAL_STATUSES)
     if active + len(jobs) > MAX_ACTIVE_JOBS:
         sys.exit(
             f"{active} active job(s) + {len(jobs)} new would exceed the "

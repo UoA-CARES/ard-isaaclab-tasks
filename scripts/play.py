@@ -90,6 +90,16 @@ import ard_tasks.tasks  # noqa: F401
 from multi_video_wrapper import MultiCameraRecordVideo
 # PLACEHOLDER: Extension template (do not remove this comment)
 
+# In GUI mode, Isaac Sim's omni.kit.pip_archive extension loads numpy 1.26, which cannot unpickle
+# checkpoints saved with numpy 2 ("No module named 'numpy._core'"). Map the numpy 2 names to numpy 1.
+try:
+    import numpy._core  # noqa: F401
+except ModuleNotFoundError:
+    import numpy
+
+    sys.modules["numpy._core"] = numpy.core
+    sys.modules["numpy._core.multiarray"] = numpy.core.multiarray
+
 
 @hydra_task_config(args_cli.task, args_cli.agent)
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
