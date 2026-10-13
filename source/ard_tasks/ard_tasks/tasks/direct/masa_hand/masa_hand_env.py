@@ -95,6 +95,8 @@ class MasaHandEnv(DirectRLEnv):
                 joint["limits_rad"], device=self.device
             )
         self.hand.write_joint_position_limit_to_sim(joint_pos_limits)
+        # also the defaults: joint-limit randomization (OpenAI EventCfg) starts from them at every reset
+        self.hand.data.default_joint_pos_limits[:] = joint_pos_limits
         self.hand_dof_lower_limits = joint_pos_limits[..., 0]
         self.hand_dof_upper_limits = joint_pos_limits[..., 1]
 

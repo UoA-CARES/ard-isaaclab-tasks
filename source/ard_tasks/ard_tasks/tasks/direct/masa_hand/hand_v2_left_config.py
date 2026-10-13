@@ -33,9 +33,10 @@ HAND_V2_LEFT_SIM_MODEL_PATH = os.path.join(
 )
 """Joint limits, frame signs and tendon routing of the real hand (from the stack's export tool)."""
 
-HAND_V2_LEFT_MOTOR_MAX_VELOCITY_DEG_S = 2400.0
-"""Motor speed cap (deg/s), from the stack's XC330 motor model.
-Used only when ``MasaHandEnvCfg.limit_motor_speed`` is True (off by default)."""
+HAND_V2_LEFT_MOTOR_MAX_VELOCITY_DEG_S = 320.0
+"""Motor speed cap (deg/s), measured on the real hand (2026-10-13); the XC330 hardware maximum is 316.
+The stack's driver still caps commands at 240 (XC330.yaml), so the real hand moves at the lower of the two.
+Used only when ``MasaHandEnvCfg.limit_motor_speed`` is True (off by default, on in the OpenAI variant)."""
 
 HAND_V2_LEFT_CONFIG = ArticulationCfg(
     prim_path="/World/envs/env_.*/Robot",
