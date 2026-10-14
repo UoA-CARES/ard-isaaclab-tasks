@@ -50,10 +50,10 @@ class MasaHandEnvCfg(DirectRLEnvCfg):
     )
     # robot
     robot_cfg: ArticulationCfg = HAND_V2_LEFT_CONFIG
-    # real hand's joint limits and tendon routing (robot-hand-control-stack export)
+    # real hand's joint limits (robot-hand-control-stack export)
     sim_model_path: str = HAND_V2_LEFT_SIM_MODEL_PATH
-    # Optional command speed limit like the real hand's driver (tendon routing + motor speed cap,
-    # see MasaHandEnv._apply_action). Off by default, like the Shadow Hand task: finger speed then
+    # Optional command speed limit like the real hand's driver (the motor speed cap, applied per
+    # joint, see MasaHandEnv._apply_action). Off by default, like the Shadow Hand task: finger speed then
     # comes only from the PD drives and the link masses. Turn it on with `env.limit_motor_speed=True`
     # on train.py; the cap can be overridden the same way (`env.motor_max_velocity_deg_s=240.0`).
     limit_motor_speed: bool = False
@@ -157,8 +157,7 @@ class MasaHandEnvCfg(DirectRLEnvCfg):
 class EventCfg:
     """Configuration for randomization (IsaacLab's Shadow Hand OpenAI EventCfg).
 
-    Shadow's ``robot_tendon_properties`` term is left out: the MASA USD has no PhysX tendons
-    (its tendon coupling is the routing matrix in MasaHandEnv._apply_action).
+    Shadow's ``robot_tendon_properties`` term is left out: the MASA USD has no PhysX tendons.
     """
 
     # -- robot

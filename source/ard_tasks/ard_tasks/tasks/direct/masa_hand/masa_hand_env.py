@@ -66,22 +66,10 @@ class MasaHandEnv(DirectRLEnv):
         self.finger_bodies.sort()
         self.num_fingertips = len(self.finger_bodies)
 
-        # tendon routing of the real hand (robot-hand-control-stack export), for the motor
-        # speed guard in _apply_action. The stack's matrices act on its internal joint frame,
-        # which is the URDF frame times `frame_sign` (-1 on the five calib_anchor=max joints).
+        # the real hand's robot config (robot-hand-control-stack export), for the joint limits below
         with open(self.cfg.sim_model_path) as f:
             sim_model = json.load(f)
-        urdf_name = {j["name"]: j["urdf_name"] for j in sim_model["joints"]}
-        frame_sign = {j["name"]: j["frame_sign"] for j in sim_model["joints"]}
-        motor_rows = []
-        for finger in sim_model["fingers"]:
-            for gains in finger["routing_matrix"]:
-                row = torch.zeros(len(self.actuated_dof_indices), device=self.device)
-                for joint, gain in zip(finger["joints"], gains):
-                    col = self.actuated_dof_indices.index(self.hand.joint_names.index(urdf_name[joint]))
-                    row[col] = gain * frame_sign[joint]
-                motor_rows.append(row)
-        self.motor_routing = torch.stack(motor_rows)  # motor step = motor_routing @ joint step
+        # speed guard in _apply_action: the motor speed cap, applied per joint
         self.motor_max_step = (
             math.radians(self.cfg.motor_max_velocity_deg_s) * self.physics_dt if self.cfg.limit_motor_speed else None
         )
@@ -168,11 +156,12 @@ class MasaHandEnv(DirectRLEnv):
             self.hand_dof_upper_limits[:, self.actuated_dof_indices],
         )
         # Like the real hand's driver (robot_hand VelocityGuard): scale the whole target step
-        # down by one factor so no motor has to move faster than its speed cap.
+        # down by one factor so no joint moves faster than the motor speed cap (measured on the
+        # real hand: each joint moves about as fast as its motor, so no tendon routing here).
         # Off by default (cfg.limit_motor_speed is False), like the Shadow Hand task.
         if self.motor_max_step is not None:
             step = self.cur_targets[:, self.actuated_dof_indices] - self.prev_targets[:, self.actuated_dof_indices]
-            overshoot = (step @ self.motor_routing.T).abs().amax(dim=-1) / self.motor_max_step
+            overshoot = step.abs().amax(dim=-1) / self.motor_max_step
             self.cur_targets[:, self.actuated_dof_indices] = (
                 self.prev_targets[:, self.actuated_dof_indices] + step / torch.clamp(overshoot, min=1.0).unsqueeze(-1)
             )

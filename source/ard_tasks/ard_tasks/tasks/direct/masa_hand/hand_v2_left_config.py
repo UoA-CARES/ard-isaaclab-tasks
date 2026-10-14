@@ -14,7 +14,7 @@ The USD is built from the robot-hand-control-stack URDF by ``scripts/convert_mas
 Rerun it when the URDF changes.
 
 * From the URDF: links, frames, joint axes, 1 Nm effort limit, no joint friction.
-* From the stack's ``model.json`` (applied by the env): joint limits and tendon routing.
+* From the stack's ``model.json`` (applied by the env): joint limits.
 * Set here: PD gains, rigid-body settings. Link masses come from PhysX (1000 kg/m^3).
 """
 
@@ -36,6 +36,7 @@ HAND_V2_LEFT_SIM_MODEL_PATH = os.path.join(
 HAND_V2_LEFT_MOTOR_MAX_VELOCITY_DEG_S = 320.0
 """Motor speed cap (deg/s), measured on the real hand (2026-10-13); the XC330 hardware maximum is 316.
 The stack's driver still caps commands at 240 (XC330.yaml), so the real hand moves at the lower of the two.
+The env applies it per joint: on the real hand each joint moves about as fast as its motor.
 Used only when ``MasaHandEnvCfg.limit_motor_speed`` is True (off by default, on in the OpenAI variant)."""
 
 HAND_V2_LEFT_CONFIG = ArticulationCfg(
