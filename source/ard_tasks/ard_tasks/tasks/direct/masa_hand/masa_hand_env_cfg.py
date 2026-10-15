@@ -158,19 +158,37 @@ class EventCfg:
     """Configuration for randomization (IsaacLab's Shadow Hand OpenAI EventCfg).
 
     Shadow's ``robot_tendon_properties`` term is left out: the MASA USD has no PhysX tendons.
+    Shadow's single hand-friction term is split by material, like the real hand: rubber-like
+    pads on the phalanges, smooth 3D-printed plastic everywhere else.
     """
 
     # -- robot
-    robot_physics_material = EventTerm(
+    # Friction ranges are estimates until measured on the real hand (slide angle: static = tan(angle)).
+    # PhysX averages the two materials in a contact, so hand-cube friction = (hand + cube) / 2.
+    robot_rubber_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
         mode="reset",
         min_step_count_between_reset=720,
         params={
-            "asset_cfg": SceneEntityCfg("robot"),
-            "static_friction_range": (0.7, 1.3),
-            "dynamic_friction_range": (1.0, 1.0),
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*_(pp|ip|dp)"),
+            "static_friction_range": (1.0, 1.5),
+            "dynamic_friction_range": (0.8, 1.2),
             "restitution_range": (1.0, 1.0),
             "num_buckets": 250,
+            "make_consistent": True,
+        },
+    )
+    robot_plastic_material = EventTerm(
+        func=mdp.randomize_rigid_body_material,
+        mode="reset",
+        min_step_count_between_reset=720,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=["palm_.*", ".*_mcp", "arm_.*"]),
+            "static_friction_range": (0.25, 0.45),
+            "dynamic_friction_range": (0.2, 0.35),
+            "restitution_range": (1.0, 1.0),
+            "num_buckets": 250,
+            "make_consistent": True,
         },
     )
     robot_joint_stiffness_and_damping = EventTerm(

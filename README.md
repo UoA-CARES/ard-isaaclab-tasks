@@ -132,22 +132,27 @@ docker run --rm --gpus all \
 
 #### HPC running
 
-The [CARES HPC Scheduler](https://uoa-cares.github.io/hpc-client/) runs jobs on a shared GPU cluster by **pulling a prebuilt image** from the CARES registry, rather than building one per job like PCS does. That one difference drives most of the workflow: you push an image ahead of time, artifacts are only preserved from `/workspace/output`, and a reward edit needs a re-push (`scripts/hpc_push.sh`, ~1 MB per iteration) before it reaches the cluster.
+The [CARES HPC Scheduler](https://uoa-cares.github.io/hpc-client/) runs jobs on a shared GPU cluster by **pulling a prebuilt image** from the CARES registry, rather than building one per job like PCS does. That one difference drives most of the workflow: you push an image ahead of time, artifacts are only preserved from `/workspace/output`, and any code change (a reward edit, a new task, a config change) needs a re-push (`scripts/hpc_push.sh`, ~1 MB per iteration) before it reaches the cluster.
 
-Once you have an account and the `hpc-client` CLI configured, submitting a seed sweep is one command:
+Once you have an account and the `hpc-client` CLI configured, a run is two steps: push an image of your commit under its own tag, then submit with that tag:
 
 ```bash
+# 1. commit first, so the image matches a commit; then build + push it under a new tag
+IMG=130.216.238.2:5500/cli797_ard-isaaclab:2.3.2-<short-name>
+IMAGE=$IMG scripts/hpc_push.sh
+# 2. submit a seed sweep on that image (add --dry-run to print the job specs without submitting)
 python scripts/hpc_submit.py --task Isaac-ARD-Cartpole-v0 --seeds 0 1 2 \
-    --max-iterations 150 --max-runtime-hours 2
+    --max-iterations 150 --max-runtime-hours 2 --image $IMG
 ```
 
 **See [`docs/HPC.md`](docs/HPC.md) for the full walkthrough:** getting an account, installing/configuring `hpc-client`, trusting the CARES registry, building/pushing the image, submitting and monitoring jobs, and collecting results from the NAS.
 
 A few gotchas worth knowing before you submit (full detail in [`docs/HPC.md`](docs/HPC.md#things-that-will-bite-you)):
 
+- **Always pass `--image`.** Without it (or `$ARD_HPC_IMAGE`), jobs run the default `cli797_ard-isaaclab:2.3.2` tag, an old build: tasks added since (the MASA OpenAI and fixed-wrist Shadow tasks) fail to start, and other tasks silently run old code. The cluster only sees the code that was in the image when it was pushed. To list the tags already pushed: `curl -s http://130.216.238.2:5500/v2/cli797_ard-isaaclab/tags/list`.
 - **`--num_envs` is not free to choose.** An arbitrary value breaks an rl_games assertion unless you also adjust the agent cfg.
 - **The vision task does not run on the HPC yet** (an RTX renderer issue on the worker GPUs). Run it locally or in Docker instead.
-- **`max_runtime_hours` is a hard kill**, so overestimate it.
+- **`max_runtime_hours` is a hard kill**, so overestimate it. Measured from submit to finish (10000 epochs, 2026-10): Shadow OpenAI FF ~3.5 h, LSTM ~5.5 h; MASA OpenAI FF ~6.6 h, LSTM ~10.5 h. The default is 2 h.
 
 ### Preparing a workspace for ARD
 
