@@ -9,6 +9,7 @@
 
 import argparse
 import sys
+import faulthandler
 
 from isaaclab.app import AppLauncher
 
@@ -44,6 +45,11 @@ args_cli, hydra_args = parser.parse_known_args()
 # always enable cameras to record video
 if args_cli.video:
     args_cli.enable_cameras = True
+    # The task cameras record env 0 only, and their reset crashes with more than one env
+    # (CUDA "index out of bounds" in Camera.reset), so video always runs a single env.
+    if args_cli.num_envs != 1:
+        print(f"[WARN] --video records env 0 only and needs --num_envs 1; using 1 instead of {args_cli.num_envs}.")
+        args_cli.num_envs = 1
 
 # clear out sys.argv for Hydra
 sys.argv = [sys.argv[0]] + hydra_args
@@ -84,6 +90,16 @@ from isaaclab_tasks.utils.hydra import hydra_task_config
 import ard_tasks.tasks  # noqa: F401
 from multi_video_wrapper import MultiCameraRecordVideo
 # PLACEHOLDER: Extension template (do not remove this comment)
+
+# In GUI mode, Isaac Sim's omni.kit.pip_archive extension loads numpy 1.26, which cannot unpickle
+# checkpoints saved with numpy 2 ("No module named 'numpy._core'"). Map the numpy 2 names to numpy 1.
+try:
+    import numpy._core  # noqa: F401
+except ModuleNotFoundError:
+    import numpy
+
+    sys.modules["numpy._core"] = numpy.core
+    sys.modules["numpy._core.multiarray"] = numpy.core.multiarray
 
 
 @hydra_task_config(args_cli.task, args_cli.agent)
@@ -240,6 +256,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
 if __name__ == "__main__":
     # run the main function
-    main()
-    # close sim app
-    simulation_app.close()
+    try:
+        main()
+    except Exception as e:
+        print(f"[ERROR] Exception occurred: {e}")
+        raise e
+    finally:
+        # close sim app
+        faulthandler.dump_traceback_later(600, exit=True)
+        simulation_app.close()

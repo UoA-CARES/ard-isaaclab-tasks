@@ -10,6 +10,12 @@ Each task's editable reward now lives in `compute_reward` (see
 Use the code below to restore a task's official reward by hand when you need a
 baseline to compare an ARD-designed reward against.
 
+**How to paste a block.** The blocks start at column 0, but `compute_reward` is a
+method of the env class. Replace the whole existing `compute_reward` method (keep
+its docstring if you like) and indent every pasted line by 4 spaces. Pasted at
+column 0, the block closes the class early and every method below it is lost,
+e.g. `AttributeError: 'MasaHandEnv' object has no attribute 'compute_full_observations'`.
+
 Source: IsaacLab 2.3.2, the `Isaac-Cartpole-Direct-v0`,
 `Isaac-Repose-Cube-Shadow-Direct-v0`, `Isaac-Repose-Cube-Shadow-Vision-Direct-v0`,
 and `Isaac-Humanoid-Direct-v0` environments. Reproduced verbatim apart from the
@@ -232,6 +238,54 @@ instead of privileged object state). Its reward scales come from
 
 Use the state task's code block verbatim.
 
+---
+
+## MASA Hand repose (state) — `Isaac-ARD-Repose-Cube-Masa-Direct-v0`
+
+`source/ard_tasks/ard_tasks/tasks/direct/masa_hand/masa_hand_env.py`
+
+Not an official IsaacLab task. The reward our original MASA hand project trained
+with is **the same** as the Shadow Hand state task's above, and `MasaHandEnvCfg`
+uses the same reward scales as `ShadowHandEnvCfg`.
+
+The block below is that Shadow Hand reward plus one MASA-only term,
+`tip_overlap`, a penalty on fingertips passing through each other, which the real
+hand (a digital twin) cannot do. It was written when self-collision was off. Self-collision
+is now on (see `hand_v2_left_config.py`) and blocks crossing fingers itself, so the term
+is only a backup: under random actions it fires in 0.5% of env-steps (19.9% with
+self-collision off), and it can be dropped. The other five
+components are the Shadow Hand template unchanged: the cube rests 0.037 m from
+`in_hand_pos` on the MASA hand and 0.040 m on the Shadow Hand (open hand,
+measured), so the distance term and the other scales carry over as they are.
+
+```python
+    def compute_reward(self) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+        dist_rew = self.goal_dist * self.cfg.dist_reward_scale
+        rot_rew = 1.0 / (torch.abs(self.rot_dist) + self.cfg.rot_eps) * self.cfg.rot_reward_scale
+        action_penalty = torch.sum(self.actions**2, dim=-1) * self.cfg.action_penalty_scale
+
+        total_reward = dist_rew + rot_rew + action_penalty
+        # success bonus: object orientation within `success_tolerance` of the goal this step
+        goal_bonus = torch.where(
+            self.goal_resets.bool(),
+            torch.full_like(total_reward, float(self.cfg.reach_goal_bonus)),
+            torch.zeros_like(total_reward),
+        )
+        # fall penalty: object drifted past `fall_dist` from the in-hand position
+        fall_pen = torch.where(
+            self.goal_dist >= self.cfg.fall_dist,
+            torch.full_like(total_reward, float(self.cfg.fall_penalty)),
+            torch.zeros_like(total_reward),
+        )
+        total_reward = total_reward + goal_bonus + fall_pen
+
+        return total_reward, {
+            "dist": dist_rew,
+            "rot": rot_rew,
+            "action_penalty": action_penalty,
+            "goal_bonus": goal_bonus,
+            "fall_penalty": fall_pen,
+        }
 ---
 
 ## The ARD reward contract

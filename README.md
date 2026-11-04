@@ -12,13 +12,16 @@ This is an **external IsaacLab project** (generated via `isaaclab.sh --new`): th
 
 ### Current task support
 
-Every task here is copied from the official IsaacLab 2.3.2 source and registered under an `Isaac-ARD-*` ID. In each task, all reward logic lives in a single `compute_reward` method, the one method ARD is allowed to rewrite; it returns the total reward *and* a dict of its named components, so every component stays visible in TensorBoard. See [Preparing a workspace for ARD](#preparing-a-workspace-for-ard) for how that edit contract works.
+Every task here (except the MASA hand task, see below) is copied from the official IsaacLab 2.3.2 source and registered under an `Isaac-ARD-*` ID. In each task, all reward logic lives in a single `compute_reward` method, the one method ARD is allowed to rewrite; it returns the total reward *and* a dict of its named components, so every component stays visible in TensorBoard. See [Preparing a workspace for ARD](#preparing-a-workspace-for-ard) for how that edit contract works.
 
 | Task ID | Description |
 | --- | --- |
 | `Isaac-ARD-Cartpole-v0` | Classic cartpole balancing, single-agent and low-DoF. The fast smoke-test task. |
 | `Isaac-ARD-Repose-Cube-Shadow-Direct-v0` | Shadow Hand reposes a cube to a target orientation from **state** observations. Config, spaces and agent hyperparameters are a verbatim migration of the official `Isaac-Repose-Cube-Shadow-Direct-v0` benchmark. |
 | `Isaac-ARD-Repose-Cube-Shadow-Vision-Direct-v0` | Shadow Hand reposes a cube to a target orientation from **vision** (TiledCamera + CNN feature extractor). Verbatim migration of the official `Isaac-Repose-Cube-Shadow-Vision-Direct-v0` benchmark. |
+| `Isaac-ARD-Repose-Cube-Masa-Direct-v0` | Our **MASA hand** (`hand_v2_left`, 21 actuated joints) reposes a cube from **state** observations. Not an official IsaacLab task: same env code, cube/goal/camera layout and `num_envs` (8192) as the Shadow state task, with the network size (`[2048, 1024, 512, 512]`) from our original MASA hand project. The robot USD ships in the task folder (`masa_hand/assets/`). Because the hand is also a digital twin, `scripts/convert_masa_hand.py` builds it from the hand's URDF in `robot-hand-control-stack` (meshes decimated to Shadow-Hand size, ~40k triangles) and checks it against the URDF: link frames, joint limits, effort and velocity limits. Self-collision is on (the palm-to-finger-base pairs whose convex hulls overlap at the open pose are filtered), and the joint limits come from the real hand's robot config via `model.json` (exported from `robot-hand-control-stack`; the URDF stays untouched). A target speed limit like the real hand's driver is available (`limit_motor_speed`, `motor_max_velocity_deg_s`) but off by default, like the Shadow task. |
+| `Isaac-ARD-Repose-Cube-Masa-OpenAI-FF-Direct-v0`<br>`Isaac-ARD-Repose-Cube-Masa-OpenAI-LSTM-Direct-v0` | The MASA hand with IsaacLab's **Shadow Hand OpenAI** settings (`Isaac-Repose-Cube-Shadow-OpenAI-FF/LSTM-Direct-v0`): 20 Hz policy, 8 s episodes, reduced policy observations with a full-state critic, domain randomization (Shadow's tendon term dropped: the MASA USD has no PhysX tendons), action/observation noise, action EMA 0.3, and IsaacLab's FF / LSTM agent configs. The hand is tilted 20° fingertips-down like the real setup, and the motor speed limit is on at the measured 320 deg/s, per joint (on the real hand each joint moves about as fast as its motor). On a 10 GB GPU the LSTM task needs `--num_envs 4096`. |
+| `Isaac-ARD-Repose-Cube-Shadow-OpenAI-FixedWrist-FF-Direct-v0`<br>`Isaac-ARD-Repose-Cube-Shadow-OpenAI-FixedWrist-LSTM-Direct-v0` | IsaacLab's **Shadow Hand OpenAI** tasks (same env code, reward, randomization and agent configs), changed only where the MASA hand differs, for a fair comparison with the MASA OpenAI tasks: the wrist (`WRJ1`, `WRJ0`) is locked to ±0.001 rad and left out of the actions (18 actuated joints), and the MASA hand's measured motor speed cap (320 deg/s) is applied with the same rule, one motor per joint at 1:1 (`limit_motor_speed`, `motor_max_velocity_deg_s`). On a 10 GB GPU the LSTM task needs `--num_envs 4096`. |
 
 A play/eval variant `Isaac-ARD-Repose-Cube-Shadow-Vision-Direct-Play-v0` (fewer envs, CNN feature extractor in inference mode) is also registered for checking a trained policy rather than training one. An earlier, larger multi-task suite (Humanoid, Franka-Cabinet, Allegro-Repose, Forge-NutThread, Shadow-Hand-Over) was removed in v0.3.0 and remains available at tag `v0.2.0`.
 
@@ -129,22 +132,27 @@ docker run --rm --gpus all \
 
 #### HPC running
 
-The [CARES HPC Scheduler](https://uoa-cares.github.io/hpc-client/) runs jobs on a shared GPU cluster by **pulling a prebuilt image** from the CARES registry, rather than building one per job like PCS does. That one difference drives most of the workflow: you push an image ahead of time, artifacts are only preserved from `/workspace/output`, and a reward edit needs a re-push (`scripts/hpc_push.sh`, ~1 MB per iteration) before it reaches the cluster.
+The [CARES HPC Scheduler](https://uoa-cares.github.io/hpc-client/) runs jobs on a shared GPU cluster by **pulling a prebuilt image** from the CARES registry, rather than building one per job like PCS does. That one difference drives most of the workflow: you push an image ahead of time, artifacts are only preserved from `/workspace/output`, and any code change (a reward edit, a new task, a config change) needs a re-push (`scripts/hpc_push.sh`, ~1 MB per iteration) before it reaches the cluster.
 
-Once you have an account and the `hpc-client` CLI configured, submitting a seed sweep is one command:
+Once you have an account and the `hpc-client` CLI configured, a run is two steps: push an image of your commit under its own tag, then submit with that tag:
 
 ```bash
+# 1. commit first, so the image matches a commit; then build + push it under a new tag
+IMG=130.216.238.2:5500/cli797_ard-isaaclab:2.3.2-<short-name>
+IMAGE=$IMG scripts/hpc_push.sh
+# 2. submit a seed sweep on that image (add --dry-run to print the job specs without submitting)
 python scripts/hpc_submit.py --task Isaac-ARD-Cartpole-v0 --seeds 0 1 2 \
-    --max-iterations 150 --max-runtime-hours 2
+    --max-iterations 150 --max-runtime-hours 2 --image $IMG
 ```
 
 **See [`docs/HPC.md`](docs/HPC.md) for the full walkthrough:** getting an account, installing/configuring `hpc-client`, trusting the CARES registry, building/pushing the image, submitting and monitoring jobs, and collecting results from the NAS.
 
 A few gotchas worth knowing before you submit (full detail in [`docs/HPC.md`](docs/HPC.md#things-that-will-bite-you)):
 
+- **Always pass `--image`.** Without it (or `$ARD_HPC_IMAGE`), jobs run the default `cli797_ard-isaaclab:2.3.2` tag, an old build: tasks added since (the MASA OpenAI and fixed-wrist Shadow tasks) fail to start, and other tasks silently run old code. The cluster only sees the code that was in the image when it was pushed. To list the tags already pushed: `curl -s http://130.216.238.2:5500/v2/cli797_ard-isaaclab/tags/list`.
 - **`--num_envs` is not free to choose.** An arbitrary value breaks an rl_games assertion unless you also adjust the agent cfg.
 - **The vision task does not run on the HPC yet** (an RTX renderer issue on the worker GPUs). Run it locally or in Docker instead.
-- **`max_runtime_hours` is a hard kill**, so overestimate it.
+- **`max_runtime_hours` is a hard kill**, so overestimate it. Measured from submit to finish (10000 epochs, 2026-10): Shadow OpenAI FF ~3.5 h, LSTM ~5.5 h; MASA OpenAI FF ~6.6 h, LSTM ~10.5 h. The default is 2 h.
 
 ### Preparing a workspace for ARD
 
@@ -200,6 +208,8 @@ ard-isaaclab-tasks/
 │       │   ├── cartpole/           # Isaac-ARD-Cartpole-v0 + ard_meta.yaml
 │       │   ├── humanoid/           # Isaac-ARD-Humanoid-Direct-v0 + ard_meta.yaml
 │       │   ├── shadow_hand/        # Isaac-ARD-Repose-Cube-Shadow-Direct-v0 (state) + ard_meta.yaml
+│       │   ├── masa_hand/          # Isaac-ARD-Repose-Cube-Masa-Direct-v0 (state) + ard_meta.yaml + robot USD
+│       │   ├── shadow_hand_fixed_wrist/  # Isaac-ARD-Repose-Cube-Shadow-OpenAI-FixedWrist-FF/LSTM-Direct-v0
 │       │   └── shadow_hand_vision/ # Isaac-ARD-Repose-Cube-Shadow-Vision-Direct-v0 (+ -Play-v0) + ard_meta.yaml
 │       └── utils/
 │           ├── reward_logging.py   # publishes compute_reward's components to TensorBoard
@@ -209,6 +219,7 @@ ard-isaaclab-tasks/
 │   ├── list_envs.py
 │   ├── zero_agent.py
 │   ├── random_agent.py
+│   ├── convert_masa_hand.py        # rebuild the MASA hand USD from its URDF (+ check against the URDF)
 │   ├── run_all_experiments.sh      # run every Isaac-ARD-* task sequentially, log each
 │   ├── pcs_entrypoint.sh           # image CMD under PCS (artifacts -> /work/logs)
 │   ├── hpc_entrypoint.sh           # job command on CARES HPC (artifacts -> /workspace/output)

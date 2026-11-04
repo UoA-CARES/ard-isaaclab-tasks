@@ -1,0 +1,648 @@
+{
+  "robot": "left_hand_v2",
+  "variant": "default",
+  "urdf_model": "hand_v2_left",
+  "frames": {
+    "target_topic": "/robot_hand/target_joint_states",
+    "target_frame": "internal degrees (zero at calib_anchor)",
+    "urdf_target_topic": "/robot_hand/target_joint_states_urdf",
+    "urdf_state_topic": "/robot_hand/joint_states_urdf",
+    "urdf_units": "radians"
+  },
+  "joints": [
+    {
+      "name": "palm_abd_add",
+      "urdf_name": "palm_abd_add",
+      "finger": "palm",
+      "limits_deg": [
+        0.0,
+        45.0
+      ],
+      "limits_rad": [
+        0.0,
+        0.7853981633974483
+      ],
+      "home_deg": 0.0,
+      "calib_anchor": "min",
+      "frame_sign": 1.0,
+      "actuated": false,
+      "sensed": true
+    },
+    {
+      "name": "ring_mcp1",
+      "urdf_name": "ring_mcp1",
+      "finger": "ring",
+      "limits_deg": [
+        -27.002,
+        22.002
+      ],
+      "limits_rad": [
+        -0.4712738046235088,
+        0.3840073420237924
+      ],
+      "home_deg": 0.0,
+      "calib_anchor": "max",
+      "frame_sign": -1.0,
+      "actuated": false,
+      "sensed": true
+    },
+    {
+      "name": "ring_mcp2",
+      "urdf_name": "ring_mcp2",
+      "finger": "ring",
+      "limits_deg": [
+        0.0,
+        90.0
+      ],
+      "limits_rad": [
+        0.0,
+        1.5707963267948966
+      ],
+      "home_deg": 0.0,
+      "calib_anchor": "min",
+      "frame_sign": 1.0,
+      "actuated": false,
+      "sensed": true
+    },
+    {
+      "name": "ring_pip",
+      "urdf_name": "ring_pip",
+      "finger": "ring",
+      "limits_deg": [
+        0.0,
+        99.998
+      ],
+      "limits_rad": [
+        0.0,
+        1.7452943454092897
+      ],
+      "home_deg": 0.0,
+      "calib_anchor": "min",
+      "frame_sign": 1.0,
+      "actuated": false,
+      "sensed": true
+    },
+    {
+      "name": "ring_dip",
+      "urdf_name": "ring_dip",
+      "finger": "ring",
+      "limits_deg": [
+        0.0,
+        90.0
+      ],
+      "limits_rad": [
+        0.0,
+        1.5707963267948966
+      ],
+      "home_deg": 0.0,
+      "calib_anchor": "min",
+      "frame_sign": 1.0,
+      "actuated": false,
+      "sensed": true
+    },
+    {
+      "name": "little_mcp1",
+      "urdf_name": "little_mcp1",
+      "finger": "little",
+      "limits_deg": [
+        -35.002,
+        10.0
+      ],
+      "limits_rad": [
+        -0.6109001447830553,
+        0.17453292519943295
+      ],
+      "home_deg": 0.0,
+      "calib_anchor": "max",
+      "frame_sign": -1.0,
+      "actuated": false,
+      "sensed": true
+    },
+    {
+      "name": "little_mcp2",
+      "urdf_name": "little_mcp2",
+      "finger": "little",
+      "limits_deg": [
+        0.0,
+        90.0
+      ],
+      "limits_rad": [
+        0.0,
+        1.5707963267948966
+      ],
+      "home_deg": 0.0,
+      "calib_anchor": "min",
+      "frame_sign": 1.0,
+      "actuated": false,
+      "sensed": true
+    },
+    {
+      "name": "little_pip",
+      "urdf_name": "little_pip",
+      "finger": "little",
+      "limits_deg": [
+        0.0,
+        99.998
+      ],
+      "limits_rad": [
+        0.0,
+        1.7452943454092897
+      ],
+      "home_deg": 0.0,
+      "calib_anchor": "min",
+      "frame_sign": 1.0,
+      "actuated": false,
+      "sensed": true
+    },
+    {
+      "name": "little_dip",
+      "urdf_name": "little_dip",
+      "finger": "little",
+      "limits_deg": [
+        0.0,
+        90.0
+      ],
+      "limits_rad": [
+        0.0,
+        1.5707963267948966
+      ],
+      "home_deg": 0.0,
+      "calib_anchor": "min",
+      "frame_sign": 1.0,
+      "actuated": false,
+      "sensed": true
+    },
+    {
+      "name": "thumb_mcp1",
+      "urdf_name": "thumb_mcp1",
+      "finger": "thumb",
+      "limits_deg": [
+        0.0,
+        110.002
+      ],
+      "limits_rad": [
+        0.0,
+        1.9198970837788023
+      ],
+      "home_deg": 0.0,
+      "calib_anchor": "max",
+      "frame_sign": -1.0,
+      "actuated": false,
+      "sensed": true
+    },
+    {
+      "name": "thumb_mcp2",
+      "urdf_name": "thumb_mcp2",
+      "finger": "thumb",
+      "limits_deg": [
+        0.0,
+        90.0
+      ],
+      "limits_rad": [
+        0.0,
+        1.5707963267948966
+      ],
+      "home_deg": 0.0,
+      "calib_anchor": "min",
+      "frame_sign": 1.0,
+      "actuated": false,
+      "sensed": true
+    },
+    {
+      "name": "thumb_pip",
+      "urdf_name": "thumb_pip",
+      "finger": "thumb",
+      "limits_deg": [
+        0.0,
+        99.998
+      ],
+      "limits_rad": [
+        0.0,
+        1.7452943454092897
+      ],
+      "home_deg": 0.0,
+      "calib_anchor": "min",
+      "frame_sign": 1.0,
+      "actuated": false,
+      "sensed": true
+    },
+    {
+      "name": "thumb_dip",
+      "urdf_name": "thumb_dip",
+      "finger": "thumb",
+      "limits_deg": [
+        0.0,
+        90.0
+      ],
+      "limits_rad": [
+        0.0,
+        1.5707963267948966
+      ],
+      "home_deg": 0.0,
+      "calib_anchor": "min",
+      "frame_sign": 1.0,
+      "actuated": false,
+      "sensed": true
+    },
+    {
+      "name": "index_mcp1",
+      "urdf_name": "index_mcp1",
+      "finger": "index",
+      "limits_deg": [
+        -9.998,
+        35.002
+      ],
+      "limits_rad": [
+        -0.17449801861439307,
+        0.6109001447830553
+      ],
+      "home_deg": 0.0,
+      "calib_anchor": "max",
+      "frame_sign": -1.0,
+      "actuated": false,
+      "sensed": true
+    },
+    {
+      "name": "index_mcp2",
+      "urdf_name": "index_mcp2",
+      "finger": "index",
+      "limits_deg": [
+        0.0,
+        90.0
+      ],
+      "limits_rad": [
+        0.0,
+        1.5707963267948966
+      ],
+      "home_deg": 0.0,
+      "calib_anchor": "min",
+      "frame_sign": 1.0,
+      "actuated": false,
+      "sensed": true
+    },
+    {
+      "name": "index_pip",
+      "urdf_name": "index_pip",
+      "finger": "index",
+      "limits_deg": [
+        0.0,
+        99.998
+      ],
+      "limits_rad": [
+        0.0,
+        1.7452943454092897
+      ],
+      "home_deg": 0.0,
+      "calib_anchor": "min",
+      "frame_sign": 1.0,
+      "actuated": false,
+      "sensed": true
+    },
+    {
+      "name": "index_dip",
+      "urdf_name": "index_dip",
+      "finger": "index",
+      "limits_deg": [
+        0.0,
+        90.0
+      ],
+      "limits_rad": [
+        0.0,
+        1.5707963267948966
+      ],
+      "home_deg": 0.0,
+      "calib_anchor": "min",
+      "frame_sign": 1.0,
+      "actuated": false,
+      "sensed": true
+    },
+    {
+      "name": "middle_mcp1",
+      "urdf_name": "middle_mcp1",
+      "finger": "middle",
+      "limits_deg": [
+        -9.998,
+        25.0
+      ],
+      "limits_rad": [
+        -0.17449801861439307,
+        0.4363323129985824
+      ],
+      "home_deg": 0.0,
+      "calib_anchor": "max",
+      "frame_sign": -1.0,
+      "actuated": false,
+      "sensed": true
+    },
+    {
+      "name": "middle_mcp2",
+      "urdf_name": "middle_mcp2",
+      "finger": "middle",
+      "limits_deg": [
+        0.0,
+        90.0
+      ],
+      "limits_rad": [
+        0.0,
+        1.5707963267948966
+      ],
+      "home_deg": 0.0,
+      "calib_anchor": "min",
+      "frame_sign": 1.0,
+      "actuated": false,
+      "sensed": true
+    },
+    {
+      "name": "middle_pip",
+      "urdf_name": "middle_pip",
+      "finger": "middle",
+      "limits_deg": [
+        0.0,
+        99.998
+      ],
+      "limits_rad": [
+        0.0,
+        1.7452943454092897
+      ],
+      "home_deg": 0.0,
+      "calib_anchor": "min",
+      "frame_sign": 1.0,
+      "actuated": false,
+      "sensed": true
+    },
+    {
+      "name": "middle_dip",
+      "urdf_name": "middle_dip",
+      "finger": "middle",
+      "limits_deg": [
+        0.0,
+        90.0
+      ],
+      "limits_rad": [
+        0.0,
+        1.5707963267948966
+      ],
+      "home_deg": 0.0,
+      "calib_anchor": "min",
+      "frame_sign": 1.0,
+      "actuated": false,
+      "sensed": true
+    }
+  ],
+  "fingers": [
+    {
+      "name": "palm",
+      "joints": [
+        "palm_abd_add"
+      ],
+      "actuators": [
+        "motor_1"
+      ],
+      "routing_matrix": [
+        [
+          2.0
+        ]
+      ]
+    },
+    {
+      "name": "ring",
+      "joints": [
+        "ring_mcp1",
+        "ring_mcp2",
+        "ring_pip",
+        "ring_dip"
+      ],
+      "actuators": [
+        "motor_4",
+        "motor_5",
+        "motor_6",
+        "motor_22",
+        "motor_23"
+      ],
+      "routing_matrix": [
+        [
+          0.0,
+          -1.0,
+          -1.0,
+          -1.0
+        ],
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          -1.0,
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    {
+      "name": "little",
+      "joints": [
+        "little_mcp1",
+        "little_mcp2",
+        "little_pip",
+        "little_dip"
+      ],
+      "actuators": [
+        "motor_2",
+        "motor_3",
+        "motor_24",
+        "motor_26",
+        "motor_25"
+      ],
+      "routing_matrix": [
+        [
+          -1.0,
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          -1.0,
+          -1.0,
+          -1.0
+        ]
+      ]
+    },
+    {
+      "name": "thumb",
+      "joints": [
+        "thumb_mcp1",
+        "thumb_mcp2",
+        "thumb_pip",
+        "thumb_dip"
+      ],
+      "actuators": [
+        "motor_11",
+        "motor_14",
+        "motor_13",
+        "motor_12",
+        "motor_15"
+      ],
+      "routing_matrix": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        [
+          -1.0,
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          -1.0,
+          -1.0,
+          -1.0
+        ],
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ]
+      ]
+    },
+    {
+      "name": "index",
+      "joints": [
+        "index_mcp1",
+        "index_mcp2",
+        "index_pip",
+        "index_dip"
+      ],
+      "actuators": [
+        "motor_16",
+        "motor_17",
+        "motor_18",
+        "motor_19",
+        "motor_21"
+      ],
+      "routing_matrix": [
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          -1.0,
+          -1.0,
+          -1.0
+        ],
+        [
+          -1.0,
+          1.0,
+          0.0,
+          0.0
+        ]
+      ]
+    },
+    {
+      "name": "middle",
+      "joints": [
+        "middle_mcp1",
+        "middle_mcp2",
+        "middle_pip",
+        "middle_dip"
+      ],
+      "actuators": [
+        "motor_7",
+        "motor_8",
+        "motor_9",
+        "motor_10",
+        "motor_20"
+      ],
+      "routing_matrix": [
+        [
+          0.0,
+          -1.0,
+          -1.0,
+          -1.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          -1.0,
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ]
+    }
+  ]
+}
