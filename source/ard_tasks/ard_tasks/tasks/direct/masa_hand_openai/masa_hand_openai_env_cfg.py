@@ -247,7 +247,7 @@ class MasaHandOpenAIEnvCfg(DirectRLEnvCfg):
     # task / observation settings
     vel_obs_scale = 0.2
     act_moving_average = 1.0
-    force_torque_obs_scale = 10.0
+    force_torque_obs_scale = 1.0
     fall_dist = 0.24
     success_tolerance = 0.1
     max_consecutive_success = 0
