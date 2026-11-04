@@ -1,6 +1,9 @@
 # ARD task metadata — used by ARD as --taskconfig directly.
 task: "Isaac-ARD-Repose-Cube-Masa-OpenAI-FF-Direct-v0"
 env_file: "source/ard_tasks/ard_tasks/tasks/direct/masa_hand/masa_hand_env.py"
+additional_cfg_files:
+  - "source/ard_tasks/ard_tasks/tasks/direct/masa_hand/masa_hand_env_cfg.py"
+  - "source/ard_tasks/ard_tasks/tasks/direct/masa_hand/hand_v2_left_config.py"
 description: >
   Use the MASA Hand's fingers to rotate a cube held in the palm until its
   orientation matches a target orientation, from state observations. Reach the
