@@ -137,21 +137,15 @@ class MasaHandEnvCfg(DirectRLEnvCfg):
     # joints reset exactly to the default pose (no noise): they move fingers sideways, and
     # neighbouring fingers are only 2.1 mm apart, so noise there starts fingers interlocked
     reset_noise_free_joint_names = ["palm_abd_add", "thumb_mcp1", "index_mcp1", "middle_mcp1", "ring_mcp1", "little_mcp1"]
-    # reward scales
-    dist_reward_scale = -10.0
-    rot_reward_scale = 1.0
-    rot_eps = 0.1
-    action_penalty_scale = -0.0002
-    reach_goal_bonus = 250
-    fall_penalty = 0
-    fall_dist = 0.24
+
+    # task / observation settings
     vel_obs_scale = 0.2
+    act_moving_average = 1.0
+    force_torque_obs_scale = 10.0
+    fall_dist = 0.24
     success_tolerance = 0.1
     max_consecutive_success = 0
     av_factor = 0.1
-    act_moving_average = 1.0
-    force_torque_obs_scale = 10.0
-
 
 @configclass
 class EventCfg:
@@ -292,20 +286,6 @@ class MasaHandOpenAIEnvCfg(MasaHandEnvCfg):
     reset_position_noise = 0.01  # range of position at reset
     reset_dof_pos_noise = 0.2  # range of dof pos at reset
     reset_dof_vel_noise = 0.0  # range of dof vel at reset
-    # reward scales
-    dist_reward_scale = -10.0
-    rot_reward_scale = 1.0
-    rot_eps = 0.1
-    action_penalty_scale = -0.0002
-    reach_goal_bonus = 250
-    fall_penalty = -50
-    fall_dist = 0.24
-    vel_obs_scale = 0.2
-    success_tolerance = 0.4
-    max_consecutive_success = 50
-    av_factor = 0.1
-    act_moving_average = 0.3
-    force_torque_obs_scale = 10.0
     # domain randomization config
     events: EventCfg = EventCfg()
     # at every time-step add gaussian noise + bias. The bias is a gaussian sampled at reset
