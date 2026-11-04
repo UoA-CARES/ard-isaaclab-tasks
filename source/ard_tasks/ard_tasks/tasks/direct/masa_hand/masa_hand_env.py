@@ -180,8 +180,6 @@ class MasaHandEnv(DirectRLEnv):
 
         if self.cfg.obs_type == "openai":
             obs = self.compute_reduced_observations()
-        elif self.cfg.obs_type == "full":
-            obs = self.compute_full_observations()
         else:
             print("Unknown observations type!")
 
@@ -205,33 +203,26 @@ class MasaHandEnv(DirectRLEnv):
         return total_reward
 
     def compute_reward(self) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
-        dist_rew = self.goal_dist * self.cfg.dist_reward_scale
-        rot_rew = 1.0 / (torch.abs(self.rot_dist) + self.cfg.rot_eps) * self.cfg.rot_reward_scale
-        action_penalty = torch.sum(self.actions**2, dim=-1) * self.cfg.action_penalty_scale
+        """<<< ARD EDIT TARGET >>> — the reward workspace.
 
-        total_reward = dist_rew + rot_rew + action_penalty
-        # success bonus: object orientation within `success_tolerance` of the goal this step
-        goal_bonus = torch.where(
-            self.goal_resets.bool(),
-            torch.full_like(total_reward, float(self.cfg.reach_goal_bonus)),
-            torch.zeros_like(total_reward),
-        )
-        # fall penalty: object drifted past `fall_dist` from the in-hand position
-        fall_pen = torch.where(
-            self.goal_dist >= self.cfg.fall_dist,
-            torch.full_like(total_reward, float(self.cfg.fall_penalty)),
-            torch.zeros_like(total_reward),
-        )
-        total_reward = total_reward + goal_bonus + fall_pen
+        All reward shaping, dense/sparse signals, and termination bonuses are
+        computed here, from `self.*` environment state only. Returns two things:
 
-        return total_reward, {
-            "dist": dist_rew,
-            "rot": rot_rew,
-            "action_penalty": action_penalty,
-            "goal_bonus": goal_bonus,
-            "fall_penalty": fall_pen,
-        }
+        1. `total_reward`: the per-env reward the policy optimises, shape (num_envs,).
+        2. `reward_components`: a dict naming each individual term that went into
+           the total, each also shape (num_envs,). The framework logs the mean of
+           each one as `Episode/components_<name>`, so every component stays observable
+           across training and can be rescaled or discarded next iteration. Use the
+           same key set on every step.
 
+        The fixed evaluation metric (`fitness_function`) is logged from
+        `_get_dones`, outside this method, and must not be touched here.
+        """
+        total_reward = torch.zeros(self.num_envs, device=self.device)
+        reward_components: dict[str, torch.Tensor] = {}
+
+        return total_reward, reward_components
+    
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         self._compute_intermediate_values()
 
@@ -406,31 +397,6 @@ class MasaHandEnv(DirectRLEnv):
 
         return obs
 
-    def compute_full_observations(self):
-        obs = torch.cat(
-            (
-                # hand
-                unscale(self.hand_dof_pos, self.hand_dof_lower_limits, self.hand_dof_upper_limits),
-                self.cfg.vel_obs_scale * self.hand_dof_vel,
-                # object
-                self.object_pos,
-                self.object_rot,
-                self.object_linvel,
-                self.cfg.vel_obs_scale * self.object_angvel,
-                # goal
-                self.in_hand_pos,
-                self.goal_rot,
-                quat_mul(self.object_rot, quat_conjugate(self.goal_rot)),
-                # fingertips
-                self.fingertip_pos.view(self.num_envs, self.num_fingertips * 3),
-                self.fingertip_rot.view(self.num_envs, self.num_fingertips * 4),
-                self.fingertip_velocities.view(self.num_envs, self.num_fingertips * 6),
-                # actions
-                self.actions,
-            ),
-            dim=-1,
-        )
-        return obs
 
     def compute_full_state(self):
         states = torch.cat(

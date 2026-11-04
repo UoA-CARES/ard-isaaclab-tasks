@@ -9,6 +9,7 @@
 
 import argparse
 import sys
+import faulthandler
 
 from isaaclab.app import AppLauncher
 
@@ -255,6 +256,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
 if __name__ == "__main__":
     # run the main function
-    main()
-    # close sim app
-    simulation_app.close()
+    try:
+        main()
+    except Exception as e:
+        print(f"[ERROR] Exception occurred: {e}")
+        raise e
+    finally:
+        # close sim app
+        faulthandler.dump_traceback_later(600, exit=True)
+        simulation_app.close()
