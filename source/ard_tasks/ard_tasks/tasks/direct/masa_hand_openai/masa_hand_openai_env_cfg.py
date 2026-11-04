@@ -18,6 +18,8 @@ from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import GaussianNoiseCfg, NoiseModelWithAdditiveBiasCfg
 
+from ard_tasks.utils.events import randomize_rigid_body_material_cached
+
 from ..masa_hand.hand_v2_left_config import (
     HAND_V2_LEFT_CONFIG,
     HAND_V2_LEFT_MOTOR_MAX_VELOCITY_DEG_S,
@@ -35,14 +37,25 @@ class EventCfg:
     """
 
     # -- robot
+    # The USD sets no contact offset, so PhysX uses 2 * g * dt^2: 5.45 mm at this dt, while neighbouring
+    # fingers are 2.1 mm apart. Fixed to Shadow's value: physics 30% faster, with no sign of fingers
+    # passing through each other more. Set here because spawn.collision_props skips instanced colliders.
+    robot_contact_offset = EventTerm(
+        func=mdp.randomize_rigid_body_collider_offsets,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "contact_offset_distribution_params": (0.002, 0.002),
+        },
+    )
     # Friction ranges are estimates until measured on the real hand (slide angle: static = tan(angle)).
     # PhysX averages the two materials in a contact, so hand-cube friction = (hand + cube) / 2.
     robot_rubber_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
+        func=randomize_rigid_body_material_cached,
         mode="reset",
         min_step_count_between_reset=720,
         params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*_(pp|ip|dp)"),
+            "asset_cfg": SceneEntityCfg("robot", body_names=["palm_.*", ".*_(pp|ip|dp)"]),
             "static_friction_range": (1.0, 1.5),
             "dynamic_friction_range": (0.8, 1.2),
             "restitution_range": (1.0, 1.0),
@@ -51,11 +64,11 @@ class EventCfg:
         },
     )
     robot_plastic_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
+        func=randomize_rigid_body_material_cached,
         mode="reset",
         min_step_count_between_reset=720,
         params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=["palm_.*", ".*_mcp", "arm_.*"]),
+            "asset_cfg": SceneEntityCfg("robot", body_names=[".*_mcp", "arm_.*"]),
             "static_friction_range": (0.25, 0.45),
             "dynamic_friction_range": (0.2, 0.35),
             "restitution_range": (1.0, 1.0),
