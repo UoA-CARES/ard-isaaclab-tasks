@@ -83,8 +83,6 @@ class MasaHandEnv(DirectRLEnv):
                 joint["limits_rad"], device=self.device
             )
         self.hand.write_joint_position_limit_to_sim(joint_pos_limits)
-        # also the defaults: joint-limit randomization (OpenAI EventCfg) starts from them at every reset
-        self.hand.data.default_joint_pos_limits[:] = joint_pos_limits
         self.hand_dof_lower_limits = joint_pos_limits[..., 0]
         self.hand_dof_upper_limits = joint_pos_limits[..., 1]
 
@@ -173,23 +171,7 @@ class MasaHandEnv(DirectRLEnv):
         )
 
     def _get_observations(self) -> dict:
-        if self.cfg.asymmetric_obs:
-            self.fingertip_force_sensors = self.hand.root_physx_view.get_link_incoming_joint_force()[
-                :, self.finger_bodies
-            ]
-
-        if self.cfg.obs_type == "openai":
-            obs = self.compute_reduced_observations()
-        else:
-            print("Unknown observations type!")
-
-        if self.cfg.asymmetric_obs:
-            states = self.compute_full_state()
-
-        observations = {"policy": obs}
-        if self.cfg.asymmetric_obs:
-            observations = {"policy": obs, "critic": states}
-        return observations
+        return {"policy": self.compute_full_observations()}
 
     def _get_rewards(self) -> torch.Tensor:
         """Framework hook. NOT an ARD edit target — ``compute_reward`` below is.
@@ -380,26 +362,8 @@ class MasaHandEnv(DirectRLEnv):
         self.object_linvel = self.object.data.root_lin_vel_w
         self.object_angvel = self.object.data.root_ang_vel_w
 
-    def compute_reduced_observations(self):
-        # Per https://arxiv.org/pdf/1808.00177.pdf Table 2
-        #   Fingertip positions
-        #   Object Position, but not orientation
-        #   Relative target orientation
+    def compute_full_observations(self):
         obs = torch.cat(
-            (
-                self.fingertip_pos.view(self.num_envs, self.num_fingertips * 3),
-                self.object_pos,
-                quat_mul(self.object_rot, quat_conjugate(self.goal_rot)),
-                self.actions,
-            ),
-            dim=-1,
-        )
-
-        return obs
-
-
-    def compute_full_state(self):
-        states = torch.cat(
             (
                 # hand
                 unscale(self.hand_dof_pos, self.hand_dof_lower_limits, self.hand_dof_upper_limits),
@@ -417,14 +381,12 @@ class MasaHandEnv(DirectRLEnv):
                 self.fingertip_pos.view(self.num_envs, self.num_fingertips * 3),
                 self.fingertip_rot.view(self.num_envs, self.num_fingertips * 4),
                 self.fingertip_velocities.view(self.num_envs, self.num_fingertips * 6),
-                self.cfg.force_torque_obs_scale
-                * self.fingertip_force_sensors.view(self.num_envs, self.num_fingertips * 6),
                 # actions
                 self.actions,
             ),
             dim=-1,
         )
-        return states
+        return obs
 
     def render(self):
         """

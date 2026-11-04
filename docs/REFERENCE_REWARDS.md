@@ -286,6 +286,18 @@ measured), so the distance term and the other scales carry over as they are.
             "goal_bonus": goal_bonus,
             "fall_penalty": fall_pen,
         }
+```
+
+---
+
+## MASA Hand repose (OpenAI) — `Isaac-ARD-Repose-Cube-Masa-OpenAI-FF-Direct-v0`, `Isaac-ARD-Repose-Cube-Masa-OpenAI-LSTM-Direct-v0`
+
+`source/ard_tasks/ard_tasks/tasks/direct/masa_hand_openai/masa_hand_openai_env.py`
+
+Use the MASA Hand state task's code block above. It reads reward scales from
+`self.cfg`, and no MASA cfg defines them now, so add them to `MasaHandOpenAIEnvCfg`
+when you paste the block. The values are the state task's, except `fall_penalty = -50`.
+
 ---
 
 ## The ARD reward contract
