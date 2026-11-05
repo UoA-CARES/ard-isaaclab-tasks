@@ -7,6 +7,8 @@
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.envs import DirectRLEnvCfg
+from isaaclab.managers import EventTermCfg as EventTerm
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import PhysxCfg, SimulationCfg
@@ -14,11 +16,51 @@ from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMater
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
+from ard_tasks.utils.events import randomize_rigid_body_material_cached
+
 from .hand_v2_left_config import (
     HAND_V2_LEFT_CONFIG,
     HAND_V2_LEFT_MOTOR_MAX_VELOCITY_DEG_S,
     HAND_V2_LEFT_SIM_MODEL_PATH,
 )
+
+
+@configclass
+class EventCfg:
+    """Hand friction by material, like the real hand and the OpenAI variant: rubber-like pads on the
+    palm and phalanges, smooth 3D-printed plastic everywhere else.
+
+    Restitution stays 0, this task's value before friction was added. The OpenAI variant uses 1, from Shadow.
+    """
+
+    # Friction ranges are estimates until measured on the real hand (slide angle: static = tan(angle)).
+    # PhysX averages the two materials in a contact, so hand-cube friction = (hand + cube) / 2.
+    robot_rubber_material = EventTerm(
+        func=randomize_rigid_body_material_cached,
+        mode="reset",
+        min_step_count_between_reset=720,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=["palm_.*", ".*_(pp|ip|dp)"]),
+            "static_friction_range": (1.0, 1.5),
+            "dynamic_friction_range": (0.8, 1.2),
+            "restitution_range": (0.0, 0.0),
+            "num_buckets": 250,
+            "make_consistent": True,
+        },
+    )
+    robot_plastic_material = EventTerm(
+        func=randomize_rigid_body_material_cached,
+        mode="reset",
+        min_step_count_between_reset=720,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=[".*_mcp", "arm_.*"]),
+            "static_friction_range": (0.25, 0.45),
+            "dynamic_friction_range": (0.2, 0.35),
+            "restitution_range": (0.0, 0.0),
+            "num_buckets": 250,
+            "make_consistent": True,
+        },
+    )
 
 
 @configclass
@@ -139,3 +181,6 @@ class MasaHandEnvCfg(DirectRLEnvCfg):
     success_tolerance = 0.1
     max_consecutive_success = 0
     av_factor = 0.1
+
+    # domain randomization config
+    events: EventCfg = EventCfg()
