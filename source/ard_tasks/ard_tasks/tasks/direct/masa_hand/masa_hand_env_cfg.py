@@ -84,8 +84,11 @@ class MasaHandEnvCfg(DirectRLEnvCfg):
             bounce_threshold_velocity=0.2,
         ),
     )
-    # robot
-    robot_cfg: ArticulationCfg = HAND_V2_LEFT_CONFIG
+    # robot: tilted 20 deg forward with the fingertips down, same as the OpenAI variant
+    # (the base rotation (0, 0.70711, -0.70711, 0) turned +20 deg about world x)
+    robot_cfg: ArticulationCfg = HAND_V2_LEFT_CONFIG.replace(
+        init_state=HAND_V2_LEFT_CONFIG.init_state.replace(rot=(-0.12279, 0.69636, -0.69636, -0.12279))
+    )
     # real hand's joint limits (robot-hand-control-stack export)
     sim_model_path: str = HAND_V2_LEFT_SIM_MODEL_PATH
     # Optional command speed limit like the real hand's driver (the motor speed cap, applied per
