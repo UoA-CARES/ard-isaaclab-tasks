@@ -102,6 +102,33 @@ except ModuleNotFoundError:
     sys.modules["numpy._core.multiarray"] = numpy.core.multiarray
 
 
+def add_joint_pos_probe(base_env):
+    """Print once per second how often hand.data.joint_pos changes, checked at every physics step."""
+    # env.step calls _apply_action just before each physics step. A check in the play loop runs only
+    # once per env.step, so it could never read above the policy rate.
+    sim_apply_action = base_env._apply_action
+    last_pos = base_env.hand.data.joint_pos.clone()
+    changes, steps, start = 0, 0, time.monotonic()
+
+    def apply_action_and_probe():
+        nonlocal last_pos, changes, steps, start
+        sim_apply_action()
+        pos = base_env.hand.data.joint_pos
+        steps += 1
+        if not torch.equal(pos, last_pos):
+            changes += 1
+            last_pos = pos.clone()
+        elapsed = time.monotonic() - start
+        if elapsed >= 1.0:
+            print(
+                f"[PROBE] joint_pos updates: {changes / elapsed:.1f} Hz real time, changed in {changes}/{steps}"
+                f" physics steps (sim rate: {1 / base_env.physics_dt:.1f} Hz)"
+            )
+            changes, steps, start = 0, 0, time.monotonic()
+
+    base_env._apply_action = apply_action_and_probe
+
+
 @hydra_task_config(args_cli.task, args_cli.agent)
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
     """Play with RL-Games agent."""
@@ -218,6 +245,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # initialize RNN states if used
     if agent.is_rnn:
         agent.init_rnn()
+    # tasks like cartpole have no hand
+    if hasattr(env.unwrapped, "hand"):
+        add_joint_pos_probe(env.unwrapped)
     # simulate environment
     # note: We simplified the logic in rl-games player.py (:func:`BasePlayer.run()`) function in an
     #   attempt to have complete control over environment stepping. However, this removes other

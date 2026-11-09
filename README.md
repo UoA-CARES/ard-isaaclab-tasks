@@ -75,7 +75,7 @@ python scripts/train.py --task Isaac-ARD-Repose-Cube-Shadow-Vision-Direct-v0 --h
 Once training is done, evaluation can be observed using the `--video` flag. This spawns multiple cameras surrounding the task and saves the video to log
 ```bash
 # Record video during evaluation
-python scripts/play.py --task Isaac-ARD-Repose-Cube-Masa-OpenAI-FF-Direct-v0 --num_envs 1 --checkpoint /home/lee/code/workspace_simulation/ard-isaaclab-tasks/outputs/hpc/friction_and_speed/friction/output/logs/rl_games/masa_hand_openai_ff/2026-10-15_00-11-27/nn/masa_hand_openai_ff.pth
+python scripts/play.py --task Isaac-ARD-Repose-Cube-Masa-OpenAI-FF-Direct-v0 --num_envs 1 --checkpoint output/logs/rl_games/masa_hand_openai_ff/2026-10-15_00-11-27/nn/masa_hand_openai_ff.pth
 ```
 
 Standard flags pass through to the rl_games runner: `--num_envs`, `--seed`, `--headless`, `--video`, `--checkpoint`, `--max_iterations`.
