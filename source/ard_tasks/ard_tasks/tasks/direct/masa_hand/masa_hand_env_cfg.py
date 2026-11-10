@@ -84,11 +84,8 @@ class MasaHandEnvCfg(DirectRLEnvCfg):
             bounce_threshold_velocity=0.2,
         ),
     )
-    # robot: tilted 20 deg forward with the fingertips down, same as the OpenAI variant
-    # (the base rotation (0, 0.70711, -0.70711, 0) turned +20 deg about world x)
-    robot_cfg: ArticulationCfg = HAND_V2_LEFT_CONFIG.replace(
-        init_state=HAND_V2_LEFT_CONFIG.init_state.replace(rot=(-0.12279, 0.69636, -0.69636, -0.12279))
-    )
+    # robot: arm level, palm tilted 20 deg with the fingertips down, same as the OpenAI variant
+    robot_cfg: ArticulationCfg = HAND_V2_LEFT_CONFIG
     # real hand's joint limits (robot-hand-control-stack export)
     sim_model_path: str = HAND_V2_LEFT_SIM_MODEL_PATH
     # Optional command speed limit like the real hand's driver (the motor speed cap, applied per
@@ -128,11 +125,13 @@ class MasaHandEnvCfg(DirectRLEnvCfg):
         "thumb_dp",
     ]
 
-    # in-hand object
+    # in-hand object: the real cube, 5 cm and 48 g. DexCube is 6 cm, so it is scaled by 5/6
+    # (collision and visual together); the mass replaces the asset's own 0.216 kg.
     object_cfg: RigidObjectCfg = RigidObjectCfg(
         prim_path="/World/envs/env_.*/object",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+            scale=(0.05 / 0.06,) * 3,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 kinematic_enabled=False,
                 disable_gravity=False,
@@ -143,18 +142,18 @@ class MasaHandEnvCfg(DirectRLEnvCfg):
                 stabilization_threshold=0.0025,
                 max_depenetration_velocity=1000.0,
             ),
-            mass_props=sim_utils.MassPropertiesCfg(density=567.0),
+            mass_props=sim_utils.MassPropertiesCfg(mass=0.048),
             semantic_tags=[("class", "cube")],
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.6), rot=(1.0, 0.0, 0.0, 0.0)),
     )
-    # goal object
+    # goal object (same size as the in-hand object)
     goal_object_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg(
         prim_path="/Visuals/goal_marker",
         markers={
             "goal": sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-                scale=(1.0, 1.0, 1.0),
+                scale=(0.05 / 0.06,) * 3,
             )
         },
     )

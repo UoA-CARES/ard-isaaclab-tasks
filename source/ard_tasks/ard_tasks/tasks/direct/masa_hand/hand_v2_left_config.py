@@ -14,6 +14,8 @@ The USD is built from the robot-hand-control-stack URDF by ``scripts/convert_mas
 Rerun it when the URDF changes.
 
 * From the URDF: links, frames, joint axes, 1 Nm effort limit, no joint friction.
+* From ``scripts/add_stag_marker.py``: the STag marker glued on the arm. The root link is
+  moved onto the marker centre, so ``init_state`` gives the marker's pose.
 * From the stack's ``model.json`` (applied by the env): joint limits.
 * Set here: PD gains, rigid-body settings. Link masses come from PhysX (1000 kg/m^3).
 """
@@ -67,9 +69,11 @@ HAND_V2_LEFT_CONFIG = ArticulationCfg(
         ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
-        # palm up, fingers along -y, fingers (not palm) under the cube spawn point
-        pos=(0.005, -0.225, 0.54),
-        rot=(0.0, 0.70711, -0.70711, 0.0),
+        # pose of the root link = the arm's STag marker centre (scripts/add_stag_marker.py).
+        # Marker up (arm level, palm up and tilted 20 deg with the fingertips down), fingers
+        # along -y, fingers (not palm) under the cube spawn point
+        pos=(0.0011, -0.19538, 0.55614),
+        rot=(0.0, 0.0, 0.0, 1.0),
         joint_pos={".*": 0.0},
     ),
     actuators={

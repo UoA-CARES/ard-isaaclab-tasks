@@ -165,11 +165,8 @@ class MasaHandOpenAIEnvCfg(DirectRLEnvCfg):
             gpu_max_rigid_patch_count=2**23,
         ),
     )
-    # robot: tilted 20 deg forward with the fingertips down, like the real hand's setup
-    # (the base rotation (0, 0.70711, -0.70711, 0) turned +20 deg about world x)
-    robot_cfg: ArticulationCfg = HAND_V2_LEFT_CONFIG.replace(
-        init_state=HAND_V2_LEFT_CONFIG.init_state.replace(rot=(-0.12279, 0.69636, -0.69636, -0.12279))
-    )
+    # robot: arm level, palm tilted 20 deg with the fingertips down, like the real hand's setup
+    robot_cfg: ArticulationCfg = HAND_V2_LEFT_CONFIG
     # real hand's joint limits (robot-hand-control-stack export)
     sim_model_path: str = HAND_V2_LEFT_SIM_MODEL_PATH
     # the real hand's motor speed limit (HAND_V2_LEFT_MOTOR_MAX_VELOCITY_DEG_S, measured), applied per

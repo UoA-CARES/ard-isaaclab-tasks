@@ -221,6 +221,7 @@ ard-isaaclab-tasks/
 │   ├── zero_agent.py
 │   ├── random_agent.py
 │   ├── convert_masa_hand.py        # rebuild the MASA hand USD from its URDF (+ check against the URDF)
+│   ├── add_stag_marker.py          # add the real arm's STag marker (HD11, ID 10) to the MASA hand USD
 │   ├── run_all_experiments.sh      # run every Isaac-ARD-* task sequentially, log each
 │   ├── pcs_entrypoint.sh           # image CMD under PCS (artifacts -> /work/logs)
 │   ├── hpc_entrypoint.sh           # job command on CARES HPC (artifacts -> /workspace/output)
