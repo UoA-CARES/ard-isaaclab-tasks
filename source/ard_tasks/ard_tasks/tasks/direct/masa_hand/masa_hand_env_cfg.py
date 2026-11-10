@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
+import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.envs import DirectRLEnvCfg
@@ -32,6 +33,18 @@ class EventCfg:
 
     Restitution stays 0, this task's value before friction was added. The OpenAI variant uses 1, from Shadow.
     """
+
+    # The USD sets no contact offset, so PhysX uses 2 * g * dt^2, while neighbouring fingers are
+    # 2.1 mm apart. Fixed to Shadow's value, as in the OpenAI variant. Set here because
+    # spawn.collision_props skips instanced colliders.
+    robot_contact_offset = EventTerm(
+        func=mdp.randomize_rigid_body_collider_offsets,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "contact_offset_distribution_params": (0.002, 0.002),
+        },
+    )
 
     # Friction ranges are estimates until measured on the real hand (slide angle: static = tan(angle)).
     # PhysX averages the two materials in a contact, so hand-cube friction = (hand + cube) / 2.

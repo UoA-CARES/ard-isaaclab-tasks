@@ -149,7 +149,7 @@ class MasaHandOpenAIEnvCfg(DirectRLEnvCfg):
     episode_length_s = 8.0
     action_space = 21
     observation_space = 43  # (openai: fingertip pos 15 + object pos 3 + relative rot 4 + actions 21)
-    state_space = 182  # (full obs 152 + fingertip forces 30)
+    state_space = 152  # (full obs 152; no fingertip forces: the real hand has no force sensors)
 
     # simulation
     sim: SimulationCfg = SimulationCfg(
@@ -205,11 +205,13 @@ class MasaHandOpenAIEnvCfg(DirectRLEnvCfg):
         "thumb_dp",
     ]
 
-    # in-hand object
+    # in-hand object: the real cube, 5 cm and 48 g. DexCube is 6 cm, so it is scaled by 5/6
+    # (collision and visual together); the mass replaces the asset's own 0.216 kg.
     object_cfg: RigidObjectCfg = RigidObjectCfg(
         prim_path="/World/envs/env_.*/object",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+            scale=(0.05 / 0.06,) * 3,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 kinematic_enabled=False,
                 disable_gravity=False,
@@ -220,18 +222,18 @@ class MasaHandOpenAIEnvCfg(DirectRLEnvCfg):
                 stabilization_threshold=0.0025,
                 max_depenetration_velocity=1000.0,
             ),
-            mass_props=sim_utils.MassPropertiesCfg(density=567.0),
+            mass_props=sim_utils.MassPropertiesCfg(mass=0.048),
             semantic_tags=[("class", "cube")],
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.6), rot=(1.0, 0.0, 0.0, 0.0)),
     )
-    # goal object
+    # goal object (same size as the in-hand object)
     goal_object_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg(
         prim_path="/Visuals/goal_marker",
         markers={
             "goal": sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-                scale=(1.0, 1.0, 1.0),
+                scale=(0.05 / 0.06,) * 3,
             )
         },
     )
@@ -254,13 +256,12 @@ class MasaHandOpenAIEnvCfg(DirectRLEnvCfg):
     # neighbouring fingers are only 2.1 mm apart, so noise there starts fingers interlocked
     reset_noise_free_joint_names = ["palm_abd_add", "thumb_mcp1", "index_mcp1", "middle_mcp1", "ring_mcp1", "little_mcp1"]
 
-    # task / observation settings
+    # task / observation settings (Shadow Hand OpenAI values)
     vel_obs_scale = 0.2
-    act_moving_average = 1.0
-    force_torque_obs_scale = 1.0
+    act_moving_average = 0.3
     fall_dist = 0.24
-    success_tolerance = 0.1
-    max_consecutive_success = 0
+    success_tolerance = 0.4
+    max_consecutive_success = 50
     av_factor = 0.1
 
     # domain randomization config
